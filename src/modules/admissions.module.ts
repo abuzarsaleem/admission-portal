@@ -4,6 +4,7 @@ import { ApplicantAdmissionsModule } from './applicant-admissions/applicant-admi
 import { CriteriaTypesModule } from './criteria-types/criteria-types.module.js';
 import { DepartmentsModule } from './departments/departments.module.js';
 import { FeeTypesModule } from './fee-types/fee-types.module.js';
+import { GeneralCriteriaModule } from './general-criteria/general-criteria.module.js';
 import { IntakesModule } from './intakes/intakes.module.js';
 import { OfferingFeesModule } from './offering-fees/offering-fees.module.js';
 import { ProgrammeFeesModule } from './programme-fees/programme-fees.module.js';
@@ -22,6 +23,7 @@ import { SupportingInformationModule } from './supporting-information/supporting
     FeeTypesModule,
     IntakesModule,
     ProgrammeOfferingsModule,
+    GeneralCriteriaModule,
     AdmissionCriteriaModule,
     ProgrammeFeesModule,
     OfferingFeesModule,
@@ -35,6 +37,7 @@ import { SupportingInformationModule } from './supporting-information/supporting
     FeeTypesModule,
     IntakesModule,
     ProgrammeOfferingsModule,
+    GeneralCriteriaModule,
     AdmissionCriteriaModule,
     ProgrammeFeesModule,
     OfferingFeesModule,

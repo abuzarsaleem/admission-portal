@@ -67,6 +67,7 @@ async function bootstrap() {
     .addTag('Admission Criteria', 'Applicant-facing admission criteria on offerings')
     .addTag('Fee Configuration', 'Offering fee configuration')
     .addTag('Supporting Information', 'Applicant-facing supporting information on offerings')
+    .addTag('General Criteria', 'Reusable admission criteria master records')
     .addTag('General Fees', 'Reusable programme fee master records')
     .addTag('Intake Review & Publication', 'Submit, review, publish, return, and close intakes')
     .addTag('Applicant Admissions', 'Public published intake/offering reads and ADM-F001 handoff')

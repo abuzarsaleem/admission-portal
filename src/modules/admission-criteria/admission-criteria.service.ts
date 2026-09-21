@@ -41,25 +41,39 @@ export class AdmissionCriteriaService {
       ctx.tenantId,
       offeringId,
     );
-    await this.assertActiveCriteriaType(dto.criteriaTypeId);
     this.assertEffectiveWindow(dto.effectiveFrom ?? null, dto.effectiveTo ?? null);
 
     const saved = await this.dataSource.transaction(async (manager) => {
-      const general = manager.create(GeneralCriterionEntity, {
-        tenantId: ctx.tenantId,
-        criteriaTypeId: dto.criteriaTypeId,
-        criteriaName: dto.criteriaName ?? null,
-        criteriaRequirement: dto.criteriaRequirement,
-        criteriaOperator: dto.criteriaOperator ?? null,
-        criteriaUnit: dto.criteriaUnit ?? null,
-        mandatory: dto.mandatory ?? true,
-      });
-      const savedGeneral = await manager.save(general);
+      let general: GeneralCriterionEntity;
+
+      if (dto.generalCriteriaId) {
+        const existing = await manager.findOne(GeneralCriterionEntity, {
+          where: { id: dto.generalCriteriaId, tenantId: ctx.tenantId },
+        });
+        if (!existing) {
+          throw new NotFoundException(
+            `General criteria ${dto.generalCriteriaId} was not found`,
+          );
+        }
+        general = existing;
+      } else {
+        await this.assertActiveCriteriaType(dto.criteriaTypeId!);
+        general = manager.create(GeneralCriterionEntity, {
+          tenantId: ctx.tenantId,
+          criteriaTypeId: dto.criteriaTypeId!,
+          criteriaName: dto.criteriaName ?? null,
+          criteriaRequirement: dto.criteriaRequirement!,
+          criteriaOperator: dto.criteriaOperator ?? null,
+          criteriaUnit: dto.criteriaUnit ?? null,
+          mandatory: dto.mandatory ?? true,
+        });
+        general = await manager.save(general);
+      }
 
       const criterion = manager.create(AdmissionCriterionEntity, {
         tenantId: ctx.tenantId,
         programmeOfferingId: offeringId,
-        generalCriteriaId: savedGeneral.id,
+        generalCriteriaId: general.id,
         sequenceNo: dto.sequenceNo ?? null,
         effectiveFrom: dto.effectiveFrom ?? null,
         effectiveTo: dto.effectiveTo ?? null,
@@ -67,7 +81,7 @@ export class AdmissionCriteriaService {
         updatedBy: ctx.userId,
       });
       const savedCriterion = await manager.save(criterion);
-      return { criterion: savedCriterion, general: savedGeneral };
+      return { criterion: savedCriterion, general };
     });
 
     await this.programmeOfferingsService.markConfiguredForSetup(

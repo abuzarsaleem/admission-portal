@@ -19,6 +19,9 @@ import {
   MinLength,
   Validate,
   ValidateIf,
+  ValidationArguments,
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
 } from 'class-validator';
 import { CriteriaOperator } from '../../../common/enums/criteria-operator.enum.js';
 import {
@@ -47,45 +50,82 @@ const toDateOrNull = ({ value }: { value: unknown }) => {
   return value;
 };
 
+@ValidatorConstraint({ name: 'createAdmissionCriterionSource', async: false })
+class CreateAdmissionCriterionSourceConstraint
+  implements ValidatorConstraintInterface
+{
+  validate(_value: unknown, args: ValidationArguments): boolean {
+    const o = args.object as CreateAdmissionCriterionDto;
+    if (o.generalCriteriaId) return true;
+    return (
+      typeof o.criteriaTypeId === 'string' &&
+      o.criteriaTypeId.length > 0 &&
+      typeof o.criteriaRequirement === 'string' &&
+      o.criteriaRequirement.trim().length >= 2
+    );
+  }
+
+  defaultMessage(): string {
+    return 'Provide either generalCriteriaId, or criteriaTypeId + criteriaRequirement';
+  }
+}
+
 export class CreateAdmissionCriterionDto {
-  @ApiProperty({
-    description: 'Controlled criteria type UUID (from criteria_types catalogue)',
-    example: '22222222-2222-4222-8222-222222222002',
+  @ApiPropertyOptional({
+    description:
+      'Option A: existing general criteria UUID to attach. Mutually exclusive with inline criteria fields.',
+    example: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1',
   })
-  @Transform(toIdString)
-  @IsUUID(undefined, { message: 'criteriaTypeId must be a valid UUID' })
-  criteriaTypeId!: string;
+  @IsOptional()
+  @IsUUID(undefined, { message: 'generalCriteriaId must be a valid UUID' })
+  generalCriteriaId?: string;
 
   @ApiPropertyOptional({
-    description: 'Optional human-readable label',
+    description:
+      'Option B: criteria type UUID. Required with criteriaRequirement when generalCriteriaId is not set.',
+    example: '22222222-2222-4222-8222-222222222002',
+  })
+  @ValidateIf((o: CreateAdmissionCriterionDto) => !o.generalCriteriaId)
+  @Transform(toIdString)
+  @IsUUID(undefined, { message: 'criteriaTypeId must be a valid UUID' })
+  criteriaTypeId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Option B: optional human-readable label',
     example: 'Minimum Percentage',
     maxLength: 150,
     nullable: true,
   })
+  @ValidateIf((o: CreateAdmissionCriterionDto) => !o.generalCriteriaId)
   @IsOptional()
   @Transform(trimString)
   @IsString()
   @MaxLength(150)
   criteriaName?: string | null;
 
-  @ApiProperty({
-    description: 'Applicant-facing requirement/value',
+  @ApiPropertyOptional({
+    description:
+      'Option B: applicant-facing requirement/value. Required when generalCriteriaId is not set.',
     example: 'Minimum 50% overall marks',
     minLength: 2,
     maxLength: 2000,
   })
+  @ValidateIf((o: CreateAdmissionCriterionDto) => !o.generalCriteriaId)
   @Transform(trimString)
   @IsString()
-  @IsNotEmpty({ message: 'criteriaRequirement is required' })
+  @IsNotEmpty({
+    message: 'criteriaRequirement is required when generalCriteriaId is not provided',
+  })
   @MinLength(2)
   @MaxLength(2000)
-  criteriaRequirement!: string;
+  criteriaRequirement?: string;
 
   @ApiPropertyOptional({
     enum: CriteriaOperator,
     example: CriteriaOperator.GREATER_THAN_OR_EQUAL,
     nullable: true,
   })
+  @ValidateIf((o: CreateAdmissionCriterionDto) => !o.generalCriteriaId)
   @IsOptional()
   @IsEnum(CriteriaOperator, {
     message: `criteriaOperator must be one of: ${Object.values(CriteriaOperator).join(', ')}`,
@@ -97,6 +137,7 @@ export class CreateAdmissionCriterionDto {
     maxLength: 30,
     nullable: true,
   })
+  @ValidateIf((o: CreateAdmissionCriterionDto) => !o.generalCriteriaId)
   @IsOptional()
   @Transform(trimString)
   @IsString()
@@ -104,10 +145,11 @@ export class CreateAdmissionCriterionDto {
   criteriaUnit?: string | null;
 
   @ApiPropertyOptional({
-    description: 'Whether criterion is mandatory (default true)',
+    description: 'Option B: whether criterion is mandatory (default true)',
     example: true,
     default: true,
   })
+  @ValidateIf((o: CreateAdmissionCriterionDto) => !o.generalCriteriaId)
   @IsOptional()
   @Type(() => Boolean)
   @IsBoolean()
@@ -154,6 +196,13 @@ export class CreateAdmissionCriterionDto {
     message: 'effectiveTo must be after effectiveFrom',
   })
   effectiveTo?: Date | null;
+
+  @ApiHideProperty()
+  @Allow()
+  @Validate(CreateAdmissionCriterionSourceConstraint, [], {
+    message: 'Provide either generalCriteriaId, or criteriaTypeId + criteriaRequirement',
+  })
+  private readonly _source = true;
 }
 
 export class UpdateAdmissionCriterionDto {
