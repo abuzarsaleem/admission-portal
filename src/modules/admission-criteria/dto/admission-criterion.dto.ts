@@ -1,0 +1,313 @@
+﻿import {
+  ApiHideProperty,
+  ApiProperty,
+  ApiPropertyOptional,
+} from '@nestjs/swagger';
+import { Transform, Type } from 'class-transformer';
+import {
+  Allow,
+  IsBoolean,
+  IsDate,
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  Min,
+  MinLength,
+  Validate,
+  ValidateIf,
+} from 'class-validator';
+import { CriteriaOperator } from '../../../common/enums/criteria-operator.enum.js';
+import {
+  AtLeastOneOfConstraint,
+  IsAfterDate,
+} from '../../../common/validators/intake.validators.js';
+
+const trimString = ({ value }: { value: unknown }) =>
+  typeof value === 'string' ? value.trim() : value;
+
+const toIdString = ({ value }: { value: unknown }) => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(Math.trunc(value));
+  }
+  if (typeof value === 'string') return value.trim();
+  return value;
+};
+
+const toDateOrNull = ({ value }: { value: unknown }) => {
+  if (value === null || value === undefined || value === '') return null;
+  if (value instanceof Date) return value;
+  if (typeof value === 'string') {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? value : parsed;
+  }
+  return value;
+};
+
+export class CreateAdmissionCriterionDto {
+  @ApiProperty({
+    description: 'Controlled criteria type UUID (from criteria_types catalogue)',
+    example: '22222222-2222-4222-8222-222222222002',
+  })
+  @Transform(toIdString)
+  @IsUUID(undefined, { message: 'criteriaTypeId must be a valid UUID' })
+  criteriaTypeId!: string;
+
+  @ApiPropertyOptional({
+    description: 'Optional human-readable label',
+    example: 'Minimum Percentage',
+    maxLength: 150,
+    nullable: true,
+  })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @MaxLength(150)
+  criteriaName?: string | null;
+
+  @ApiProperty({
+    description: 'Applicant-facing requirement/value',
+    example: 'Minimum 50% overall marks',
+    minLength: 2,
+    maxLength: 2000,
+  })
+  @Transform(trimString)
+  @IsString()
+  @IsNotEmpty({ message: 'criteriaRequirement is required' })
+  @MinLength(2)
+  @MaxLength(2000)
+  criteriaRequirement!: string;
+
+  @ApiPropertyOptional({
+    enum: CriteriaOperator,
+    example: CriteriaOperator.GREATER_THAN_OR_EQUAL,
+    nullable: true,
+  })
+  @IsOptional()
+  @IsEnum(CriteriaOperator, {
+    message: `criteriaOperator must be one of: ${Object.values(CriteriaOperator).join(', ')}`,
+  })
+  criteriaOperator?: CriteriaOperator | null;
+
+  @ApiPropertyOptional({
+    example: 'PERCENTAGE',
+    maxLength: 30,
+    nullable: true,
+  })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @MaxLength(30)
+  criteriaUnit?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Whether criterion is mandatory (default true)',
+    example: true,
+    default: true,
+  })
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  mandatory?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Display/sequence order',
+    example: 1,
+    minimum: 0,
+    nullable: true,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  sequenceNo?: number | null;
+
+  @ApiPropertyOptional({
+    description: 'Effective from (ISO-8601)',
+    example: '2026-07-01T00:00:00.000Z',
+    nullable: true,
+    type: String,
+    format: 'date-time',
+  })
+  @IsOptional()
+  @Transform(toDateOrNull)
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @IsDate({ message: 'effectiveFrom must be a valid ISO-8601 datetime' })
+  effectiveFrom?: Date | null;
+
+  @ApiPropertyOptional({
+    description: 'Effective to (ISO-8601); must be after effectiveFrom when both set',
+    example: '2026-09-15T23:59:59.000Z',
+    nullable: true,
+    type: String,
+    format: 'date-time',
+  })
+  @IsOptional()
+  @Transform(toDateOrNull)
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @IsDate({ message: 'effectiveTo must be a valid ISO-8601 datetime' })
+  @ValidateIf((o) => o.effectiveFrom != null && o.effectiveTo != null)
+  @IsAfterDate('effectiveFrom', {
+    message: 'effectiveTo must be after effectiveFrom',
+  })
+  effectiveTo?: Date | null;
+}
+
+export class UpdateAdmissionCriterionDto {
+  @ApiPropertyOptional({
+    example: 'Minimum Percentage',
+    maxLength: 150,
+    nullable: true,
+  })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @MaxLength(150)
+  criteriaName?: string | null;
+
+  @ApiPropertyOptional({
+    example: 'Minimum 60% overall marks',
+    minLength: 2,
+    maxLength: 2000,
+  })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @IsNotEmpty({ message: 'criteriaRequirement must not be empty' })
+  @MinLength(2)
+  @MaxLength(2000)
+  criteriaRequirement?: string;
+
+  @ApiPropertyOptional({
+    enum: CriteriaOperator,
+    nullable: true,
+  })
+  @IsOptional()
+  @IsEnum(CriteriaOperator, {
+    message: `criteriaOperator must be one of: ${Object.values(CriteriaOperator).join(', ')}`,
+  })
+  criteriaOperator?: CriteriaOperator | null;
+
+  @ApiPropertyOptional({ example: 'PERCENTAGE', maxLength: 30, nullable: true })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @MaxLength(30)
+  criteriaUnit?: string | null;
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  mandatory?: boolean;
+
+  @ApiPropertyOptional({ example: 2, minimum: 0, nullable: true })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  sequenceNo?: number | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    type: String,
+    format: 'date-time',
+  })
+  @IsOptional()
+  @Transform(toDateOrNull)
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @IsDate({ message: 'effectiveFrom must be a valid ISO-8601 datetime' })
+  effectiveFrom?: Date | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    type: String,
+    format: 'date-time',
+  })
+  @IsOptional()
+  @Transform(toDateOrNull)
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @IsDate({ message: 'effectiveTo must be a valid ISO-8601 datetime' })
+  @ValidateIf((o) => o.effectiveFrom != null && o.effectiveTo != null)
+  @IsAfterDate('effectiveFrom', {
+    message: 'effectiveTo must be after effectiveFrom',
+  })
+  effectiveTo?: Date | null;
+
+  @ApiHideProperty()
+  @Allow()
+  @Validate(
+    AtLeastOneOfConstraint,
+    [
+      'criteriaName',
+      'criteriaRequirement',
+      'criteriaOperator',
+      'criteriaUnit',
+      'mandatory',
+      'sequenceNo',
+      'effectiveFrom',
+      'effectiveTo',
+    ],
+    {
+      message:
+        'At least one updatable field is required (criteriaName, criteriaRequirement, criteriaOperator, criteriaUnit, mandatory, sequenceNo, effectiveFrom, effectiveTo)',
+    },
+  )
+  private readonly _atLeastOne = true;
+}
+
+export class AdmissionCriterionResponseDto {
+  @ApiProperty({ example: 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1', description: 'Admission criterion ID' })
+  id!: string;
+
+  @ApiProperty({ example: '90000000-0000-4000-8000-000000009001' })
+  tenantId!: string;
+
+  @ApiProperty({ example: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1' })
+  programmeOfferingId!: string;
+
+  @ApiProperty({ example: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1' })
+  generalCriteriaId!: string;
+
+  @ApiProperty({ example: '22222222-2222-4222-8222-222222222001' })
+  criteriaTypeId!: string;
+
+  @ApiPropertyOptional({ nullable: true, example: 'Minimum Percentage' })
+  criteriaName!: string | null;
+
+  @ApiProperty({ example: 'Minimum 50% overall marks' })
+  criteriaRequirement!: string;
+
+  @ApiPropertyOptional({ enum: CriteriaOperator, nullable: true })
+  criteriaOperator!: CriteriaOperator | null;
+
+  @ApiPropertyOptional({ nullable: true, example: 'PERCENTAGE' })
+  criteriaUnit!: string | null;
+
+  @ApiProperty({ example: true })
+  mandatory!: boolean;
+
+  @ApiPropertyOptional({ nullable: true, example: 1 })
+  sequenceNo!: number | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  effectiveFrom!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  effectiveTo!: string | null;
+
+  @ApiProperty()
+  createdAt!: string;
+
+  @ApiProperty({ example: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1' })
+  createdBy!: string;
+
+  @ApiProperty()
+  updatedAt!: string;
+
+  @ApiProperty({ example: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1' })
+  updatedBy!: string;
+}
