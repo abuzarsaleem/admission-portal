@@ -69,6 +69,7 @@ export class IntakesService {
     }
 
     const [rows, total] = await qb.getManyAndCount();
+    const summary = await this.getStatusSummary(ctx.tenantId);
 
     return {
       items: rows.map((row) => this.toResponse(row)),
@@ -78,6 +79,41 @@ export class IntakesService {
         total,
         totalPages: total === 0 ? 0 : Math.ceil(total / limit),
       },
+      summary,
+    };
+  }
+
+  private async getStatusSummary(tenantId: string): Promise<{
+    total: number;
+    draft: number;
+    configured: number;
+    underReview: number;
+    published: number;
+    closed: number;
+  }> {
+    const rows = await this.intakesRepo
+      .createQueryBuilder('intake')
+      .select('intake.status', 'status')
+      .addSelect('COUNT(*)', 'count')
+      .where('intake.tenantId = :tenantId', { tenantId })
+      .groupBy('intake.status')
+      .getRawMany<{ status: string; count: string }>();
+
+    const counts: Record<string, number> = {};
+    let total = 0;
+    for (const row of rows) {
+      const n = Number(row.count) || 0;
+      counts[row.status] = n;
+      total += n;
+    }
+
+    return {
+      total,
+      draft: counts[IntakeStatus.DRAFT] ?? 0,
+      configured: counts[IntakeStatus.CONFIGURED] ?? 0,
+      underReview: counts[IntakeStatus.UNDER_REVIEW] ?? 0,
+      published: counts[IntakeStatus.PUBLISHED] ?? 0,
+      closed: counts[IntakeStatus.CLOSED] ?? 0,
     };
   }
 

@@ -43,10 +43,34 @@ export class IntakeResponseDto {
   updatedBy!: string;
 }
 
+/** Tenant-wide intake counts for dashboard summary cards (independent of list filters). */
+export class IntakeStatusSummaryDto {
+  @ApiProperty({ example: 8, description: 'Total intakes for the tenant' })
+  total!: number;
+
+  @ApiProperty({ example: 2 })
+  draft!: number;
+
+  @ApiProperty({ example: 0, description: 'CONFIGURED intakes' })
+  configured!: number;
+
+  @ApiProperty({ example: 1 })
+  underReview!: number;
+
+  @ApiProperty({ example: 4 })
+  published!: number;
+
+  @ApiProperty({ example: 1 })
+  closed!: number;
+}
+
 export class IntakeListResponseDto {
   @ApiProperty({ type: [IntakeResponseDto] })
   items!: IntakeResponseDto[];
 
   @ApiProperty({ type: PaginationMetaDto })
   meta!: PaginationMetaDto;
+
+  @ApiProperty({ type: IntakeStatusSummaryDto })
+  summary!: IntakeStatusSummaryDto;
 }

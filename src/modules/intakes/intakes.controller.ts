@@ -37,6 +37,7 @@ import {
 import {
   IntakeListResponseDto,
   IntakeResponseDto,
+  IntakeStatusSummaryDto,
 } from './dto/intake-response.dto.js';
 import { ListIntakesQueryDto } from './dto/list-intakes-query.dto.js';
 import { IntakesService } from './intakes.service.js';
@@ -45,6 +46,7 @@ import { IntakesService } from './intakes.service.js';
 @ApiExtraModels(
   IntakeResponseDto,
   IntakeListResponseDto,
+  IntakeStatusSummaryDto,
   ApiErrorResponseDto,
   CreateIntakeDto,
   UpdateIntakeDto,
@@ -76,7 +78,8 @@ export class IntakesController {
   @ApiOperation({
     summary: 'List tenant intakes',
     description:
-      'Returns a paginated list of intakes for the active tenant. Optional status filter.',
+      'Returns a paginated list of intakes for the active tenant with optional status filter. ' +
+      'Also returns tenant-wide `summary` counts for dashboard cards (total, draft, configured, underReview, published, closed).',
   })
   @ApiWrappedOkArrayResponse(IntakeResponseDto, 'Intake list')
   list(
