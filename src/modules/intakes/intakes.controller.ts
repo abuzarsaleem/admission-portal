@@ -79,7 +79,7 @@ export class IntakesController {
     summary: 'List tenant intakes',
     description:
       'Returns a paginated list of intakes for the active tenant with optional status filter. ' +
-      'Also returns tenant-wide `summary` counts for dashboard cards (total, draft, configured, underReview, published, closed).',
+      'Each item includes `programmesCount` (distinct programmes configured on the intake).',
   })
   @ApiWrappedOkArrayResponse(IntakeResponseDto, 'Intake list')
   list(
@@ -89,10 +89,22 @@ export class IntakesController {
     return this.intakesService.list(ctx, query);
   }
 
+  @Get('stats')
+  @ApiOperation({
+    summary: 'Get intake status stats',
+    description:
+      'Tenant-wide dashboard counts: total, draft, configured, underReview, published, closed.',
+  })
+  @ApiWrappedOkResponse(IntakeStatusSummaryDto, 'Intake status stats')
+  getStats(@ReqContext() ctx: RequestContext): Promise<IntakeStatusSummaryDto> {
+    return this.intakesService.getStats(ctx);
+  }
+
   @Get(':intakeId')
   @ApiOperation({
     summary: 'Get intake details',
-    description: 'Returns a single intake by ID within the active tenant.',
+    description:
+      'Returns a single intake by ID within the active tenant, including programmesCount.',
   })
   @ApiParam({
     name: 'intakeId',

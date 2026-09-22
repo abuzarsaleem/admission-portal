@@ -30,6 +30,12 @@ export class IntakeResponseDto {
   @ApiPropertyOptional({ example: null, nullable: true })
   publishedBy!: string | null;
 
+  @ApiProperty({
+    example: 3,
+    description: 'Number of programmes (offerings) configured on this intake',
+  })
+  programmesCount!: number;
+
   @ApiProperty({ example: '2026-06-01T11:00:00.000Z' })
   createdAt!: string;
 
@@ -43,7 +49,7 @@ export class IntakeResponseDto {
   updatedBy!: string;
 }
 
-/** Tenant-wide intake counts for dashboard summary cards (independent of list filters). */
+/** Tenant-wide intake counts for dashboard summary cards. */
 export class IntakeStatusSummaryDto {
   @ApiProperty({ example: 8, description: 'Total intakes for the tenant' })
   total!: number;
@@ -70,7 +76,4 @@ export class IntakeListResponseDto {
 
   @ApiProperty({ type: PaginationMetaDto })
   meta!: PaginationMetaDto;
-
-  @ApiProperty({ type: IntakeStatusSummaryDto })
-  summary!: IntakeStatusSummaryDto;
 }

@@ -8,11 +8,13 @@ import { Repository } from 'typeorm';
 import type { RequestContext } from '../../common/decorators/request-context.decorator.js';
 import { MasterStatus } from '../../common/enums/master-data.enum.js';
 import { DepartmentEntity } from '../../database/entities/department.entity.js';
+import { ProgrammeEntity } from '../../database/entities/programme.entity.js';
 import type {
   CreateDepartmentDto,
   DepartmentListResponseDto,
   DepartmentResponseDto,
   ListDepartmentsQueryDto,
+  MasterDataStatsDto,
   UpdateDepartmentDto,
 } from './dto/department.dto.js';
 
@@ -21,6 +23,8 @@ export class DepartmentsService {
   constructor(
     @InjectRepository(DepartmentEntity)
     private readonly departmentsRepo: Repository<DepartmentEntity>,
+    @InjectRepository(ProgrammeEntity)
+    private readonly programmesRepo: Repository<ProgrammeEntity>,
   ) {}
 
   async create(
@@ -69,6 +73,54 @@ export class DepartmentsService {
         total,
         totalPages: total === 0 ? 0 : Math.ceil(total / limit),
       },
+    };
+  }
+
+  async getMasterDataStats(ctx: RequestContext): Promise<MasterDataStatsDto> {
+    const [departmentRows, programmeRows] = await Promise.all([
+      this.departmentsRepo
+        .createQueryBuilder('department')
+        .select('department.status', 'status')
+        .addSelect('COUNT(*)', 'count')
+        .where('department.tenantId = :tenantId', { tenantId: ctx.tenantId })
+        .groupBy('department.status')
+        .getRawMany<{ status: string; count: string }>(),
+      this.programmesRepo
+        .createQueryBuilder('programme')
+        .select('programme.status', 'status')
+        .addSelect('COUNT(*)', 'count')
+        .where('programme.tenantId = :tenantId', { tenantId: ctx.tenantId })
+        .groupBy('programme.status')
+        .getRawMany<{ status: string; count: string }>(),
+    ]);
+
+    const dept = this.toStatusCounts(departmentRows);
+    const prog = this.toStatusCounts(programmeRows);
+
+    return {
+      totalDepartments: dept.total,
+      activeDepartments: dept.active,
+      inactiveDepartments: dept.inactive,
+      totalProgrammes: prog.total,
+      activeProgrammes: prog.active,
+      inactiveProgrammes: prog.inactive,
+    };
+  }
+
+  private toStatusCounts(
+    rows: Array<{ status: string; count: string }>,
+  ): { total: number; active: number; inactive: number } {
+    const counts: Record<string, number> = {};
+    let total = 0;
+    for (const row of rows) {
+      const n = Number(row.count) || 0;
+      counts[row.status] = n;
+      total += n;
+    }
+    return {
+      total,
+      active: counts[MasterStatus.ACTIVE] ?? 0,
+      inactive: counts[MasterStatus.INACTIVE] ?? 0,
     };
   }
 

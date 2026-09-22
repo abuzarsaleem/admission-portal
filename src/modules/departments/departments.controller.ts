@@ -35,6 +35,7 @@ import {
   DepartmentListResponseDto,
   DepartmentResponseDto,
   ListDepartmentsQueryDto,
+  MasterDataStatsDto,
   UpdateDepartmentDto,
 } from './dto/department.dto.js';
 
@@ -42,6 +43,7 @@ import {
 @ApiExtraModels(
   DepartmentResponseDto,
   DepartmentListResponseDto,
+  MasterDataStatsDto,
   CreateDepartmentDto,
   UpdateDepartmentDto,
   ApiErrorResponseDto,
@@ -111,5 +113,25 @@ export class DepartmentsController {
     departmentId: string,
   ): Promise<DepartmentResponseDto> {
     return this.departmentsService.remove(ctx, departmentId);
+  }
+}
+
+@ApiTags('Departments')
+@ApiExtraModels(MasterDataStatsDto, ApiErrorResponseDto)
+@ApiTenantHeaders()
+@ApiStandardErrorResponses()
+@Controller('admissions')
+export class MasterDataStatsController {
+  constructor(private readonly departmentsService: DepartmentsService) {}
+
+  @Get('departments-programmes/stats')
+  @ApiOperation({
+    summary: 'Get department and programme stats',
+    description:
+      'Single dashboard payload: total/active/inactive for departments and programmes.',
+  })
+  @ApiWrappedOkResponse(MasterDataStatsDto, 'Department and programme stats')
+  getStats(@ReqContext() ctx: RequestContext): Promise<MasterDataStatsDto> {
+    return this.departmentsService.getMasterDataStats(ctx);
   }
 }

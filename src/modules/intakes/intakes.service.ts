@@ -13,12 +13,18 @@ import {
   IntakeStatus,
 } from '../../common/enums/intake-status.enum.js';
 import { IntakeEntity } from '../../database/entities/intake.entity.js';
+import { ProgrammeOfferingEntity } from '../../database/entities/programme-offering.entity.js';
 import type { RequestContext } from '../../common/decorators/request-context.decorator.js';
-import type { ApplicationWindowDto, CreateIntakeDto, UpdateIntakeDto } from './dto/intake-request.dto.js';
+import type {
+  ApplicationWindowDto,
+  CreateIntakeDto,
+  UpdateIntakeDto,
+} from './dto/intake-request.dto.js';
 import type { ListIntakesQueryDto } from './dto/list-intakes-query.dto.js';
 import type {
   IntakeListResponseDto,
   IntakeResponseDto,
+  IntakeStatusSummaryDto,
 } from './dto/intake-response.dto.js';
 
 @Injectable()
@@ -26,6 +32,8 @@ export class IntakesService {
   constructor(
     @InjectRepository(IntakeEntity)
     private readonly intakesRepo: Repository<IntakeEntity>,
+    @InjectRepository(ProgrammeOfferingEntity)
+    private readonly offeringsRepo: Repository<ProgrammeOfferingEntity>,
   ) {}
 
   async create(
@@ -47,7 +55,7 @@ export class IntakesService {
     });
 
     const saved = await this.intakesRepo.save(entity);
-    return this.toResponse(saved);
+    return this.toResponse(saved, 0);
   }
 
   async list(
@@ -69,28 +77,31 @@ export class IntakesService {
     }
 
     const [rows, total] = await qb.getManyAndCount();
-    const summary = await this.getStatusSummary(ctx.tenantId);
+    const programmesCounts = await this.getProgrammesCounts(
+      ctx.tenantId,
+      rows.map((row) => row.id),
+    );
 
     return {
-      items: rows.map((row) => this.toResponse(row)),
+      items: rows.map((row) =>
+        this.toResponse(row, programmesCounts.get(String(row.id)) ?? 0),
+      ),
       meta: {
         page,
         limit,
         total,
         totalPages: total === 0 ? 0 : Math.ceil(total / limit),
       },
-      summary,
     };
   }
 
-  private async getStatusSummary(tenantId: string): Promise<{
-    total: number;
-    draft: number;
-    configured: number;
-    underReview: number;
-    published: number;
-    closed: number;
-  }> {
+  async getStats(ctx: RequestContext): Promise<IntakeStatusSummaryDto> {
+    return this.getStatusSummary(ctx.tenantId);
+  }
+
+  private async getStatusSummary(
+    tenantId: string,
+  ): Promise<IntakeStatusSummaryDto> {
     const rows = await this.intakesRepo
       .createQueryBuilder('intake')
       .select('intake.status', 'status')
@@ -117,12 +128,40 @@ export class IntakesService {
     };
   }
 
+  private async getProgrammesCounts(
+    tenantId: string,
+    intakeIds: string[],
+  ): Promise<Map<string, number>> {
+    const map = new Map<string, number>();
+    if (intakeIds.length === 0) return map;
+
+    const rows = await this.offeringsRepo
+      .createQueryBuilder('offering')
+      .select('offering.intakeId', 'intakeId')
+      .addSelect('COUNT(DISTINCT offering.programmeId)', 'count')
+      .where('offering.tenantId = :tenantId', { tenantId })
+      .andWhere('offering.intakeId IN (:...intakeIds)', { intakeIds })
+      .groupBy('offering.intakeId')
+      .getRawMany<{ intakeId: string; count: string }>();
+
+    for (const row of rows) {
+      map.set(String(row.intakeId), Number(row.count) || 0);
+    }
+    return map;
+  }
+
   async getById(
     ctx: RequestContext,
     intakeId: string,
   ): Promise<IntakeResponseDto> {
     const intake = await this.findTenantIntake(ctx.tenantId, intakeId);
-    return this.toResponse(intake);
+    const programmesCounts = await this.getProgrammesCounts(ctx.tenantId, [
+      intake.id,
+    ]);
+    return this.toResponse(
+      intake,
+      programmesCounts.get(String(intake.id)) ?? 0,
+    );
   }
 
   async update(
@@ -151,7 +190,13 @@ export class IntakesService {
 
     intake.updatedBy = ctx.userId;
     const saved = await this.intakesRepo.save(intake);
-    return this.toResponse(saved);
+    const programmesCounts = await this.getProgrammesCounts(ctx.tenantId, [
+      saved.id,
+    ]);
+    return this.toResponse(
+      saved,
+      programmesCounts.get(String(saved.id)) ?? 0,
+    );
   }
 
   async updateApplicationWindow(
@@ -168,7 +213,13 @@ export class IntakesService {
     intake.updatedBy = ctx.userId;
 
     const saved = await this.intakesRepo.save(intake);
-    return this.toResponse(saved);
+    const programmesCounts = await this.getProgrammesCounts(ctx.tenantId, [
+      saved.id,
+    ]);
+    return this.toResponse(
+      saved,
+      programmesCounts.get(String(saved.id)) ?? 0,
+    );
   }
 
   async findTenantIntake(
@@ -241,7 +292,7 @@ export class IntakesService {
     }
   }
 
-  toResponse(entity: IntakeEntity): IntakeResponseDto {
+  toResponse(entity: IntakeEntity, programmesCount = 0): IntakeResponseDto {
     return {
       id: String(entity.id),
       tenantId: String(entity.tenantId),
@@ -254,6 +305,7 @@ export class IntakesService {
         ? entity.publishedAt.toISOString()
         : null,
       publishedBy: entity.publishedBy ? String(entity.publishedBy) : null,
+      programmesCount,
       createdAt: entity.createdAt.toISOString(),
       createdBy: String(entity.createdBy),
       updatedAt: entity.updatedAt.toISOString(),

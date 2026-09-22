@@ -179,3 +179,24 @@ export class DepartmentListResponseDto {
   @ApiProperty({ type: PaginationMetaDto })
   meta!: PaginationMetaDto;
 }
+
+/** Combined department + programme status counts for dashboard cards. */
+export class MasterDataStatsDto {
+  @ApiProperty({ example: 12, description: 'Total departments' })
+  totalDepartments!: number;
+
+  @ApiProperty({ example: 10, description: 'ACTIVE departments' })
+  activeDepartments!: number;
+
+  @ApiProperty({ example: 2, description: 'INACTIVE departments' })
+  inactiveDepartments!: number;
+
+  @ApiProperty({ example: 40, description: 'Total programmes' })
+  totalProgrammes!: number;
+
+  @ApiProperty({ example: 35, description: 'ACTIVE programmes' })
+  activeProgrammes!: number;
+
+  @ApiProperty({ example: 5, description: 'INACTIVE programmes' })
+  inactiveProgrammes!: number;
+}
