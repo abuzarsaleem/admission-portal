@@ -27,8 +27,10 @@ import {
 import { ApiErrorResponseDto } from '../../common/dto/api-response.dto.js';
 import { ParseUuidPipe } from '../../common/pipes/parse-uuid.pipe.js';
 import {
+  AdmissionCriterionBatchResponseDto,
   AdmissionCriterionResponseDto,
   CreateAdmissionCriterionDto,
+  CreateAdmissionCriterionItemDto,
   UpdateAdmissionCriterionDto,
 } from './dto/admission-criterion.dto.js';
 import { AdmissionCriteriaService } from './admission-criteria.service.js';
@@ -36,7 +38,9 @@ import { AdmissionCriteriaService } from './admission-criteria.service.js';
 @ApiTags('Admission Criteria')
 @ApiExtraModels(
   AdmissionCriterionResponseDto,
+  AdmissionCriterionBatchResponseDto,
   CreateAdmissionCriterionDto,
+  CreateAdmissionCriterionItemDto,
   UpdateAdmissionCriterionDto,
   ApiErrorResponseDto,
 )
@@ -48,64 +52,69 @@ export class AdmissionCriteriaController {
     private readonly admissionCriteriaService: AdmissionCriteriaService,
   ) {}
 
-  @Post('offerings/:offeringId/criteria')
+  @Post('offerings/criteria')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
-    summary: 'Create admission criterion',
+    summary: 'Create admission criterion(s)',
     description:
-      'Attaches a criterion to an editable offering. Use **one** of:\n' +
+      'Attaches one or more criteria (`criteria[]`) to one or more editable offerings (`offeringIds`). ' +
+      'Each criteria item uses **one** of:\n' +
       '1) `generalCriteriaId` — link an existing general criteria master\n' +
       '2) `criteriaTypeId` + `criteriaRequirement` — create a new general criterion and link it\n' +
-      'Do not send both.',
-  })
-  @ApiParam({
-    name: 'offeringId',
-    description: 'Offering UUID',
-    example: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1',
+      'Do not send both on the same item.',
   })
   @ApiBody({
     type: CreateAdmissionCriterionDto,
     examples: {
       attachExisting: {
-        summary: 'Attach existing general criterion',
+        summary: 'Attach multiple existing criteria to offerings',
         value: {
-          generalCriteriaId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1',
-          sequenceNo: 1,
-          effectiveFrom: '2026-07-01T00:00:00.000Z',
-          effectiveTo: '2026-09-15T23:59:59.000Z',
+          offeringIds: [
+            'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1',
+            'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2',
+          ],
+          criteria: [
+            {
+              generalCriteriaId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1',
+              sequenceNo: 1,
+              effectiveFrom: '2026-07-01T00:00:00.000Z',
+              effectiveTo: '2026-09-15T23:59:59.000Z',
+            },
+            {
+              generalCriteriaId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2',
+              sequenceNo: 2,
+            },
+          ],
         },
       },
       createInline: {
-        summary: 'Create criteria master inline and attach',
+        summary: 'Create criteria masters inline and attach',
         value: {
-          criteriaTypeId: '22222222-2222-4222-8222-222222222002',
-          criteriaName: 'Minimum Percentage',
-          criteriaRequirement: 'Minimum 50% overall marks',
-          criteriaOperator: 'GREATER_THAN_OR_EQUAL',
-          criteriaUnit: 'PERCENTAGE',
-          mandatory: true,
-          sequenceNo: 1,
-          effectiveFrom: '2026-07-01T00:00:00.000Z',
-          effectiveTo: '2026-09-15T23:59:59.000Z',
+          offeringIds: ['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1'],
+          criteria: [
+            {
+              criteriaTypeId: '22222222-2222-4222-8222-222222222002',
+              criteriaName: 'Minimum Percentage',
+              criteriaRequirement: 'Minimum 50% overall marks',
+              criteriaOperator: 'GREATER_THAN_OR_EQUAL',
+              criteriaUnit: 'PERCENTAGE',
+              mandatory: true,
+              sequenceNo: 1,
+            },
+          ],
         },
       },
     },
   })
   @ApiWrappedCreatedResponse(
-    AdmissionCriterionResponseDto,
-    'Admission criterion created',
+    AdmissionCriterionBatchResponseDto,
+    'Admission criterion(s) created',
   )
-  createForOffering(
+  createForOfferings(
     @ReqContext() ctx: RequestContext,
-    @Param('offeringId', new ParseUuidPipe('offeringId'))
-    offeringId: string,
     @Body() dto: CreateAdmissionCriterionDto,
-  ): Promise<AdmissionCriterionResponseDto> {
-    return this.admissionCriteriaService.createForOffering(
-      ctx,
-      offeringId,
-      dto,
-    );
+  ): Promise<AdmissionCriterionBatchResponseDto> {
+    return this.admissionCriteriaService.createForOfferings(ctx, dto);
   }
 
   @Patch('criteria/:criteriaId')

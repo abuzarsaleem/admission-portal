@@ -6,6 +6,9 @@ import {
 import { Transform, Type } from 'class-transformer';
 import {
   Allow,
+  ArrayMinSize,
+  ArrayUnique,
+  IsArray,
   IsDate,
   IsEnum,
   IsInt,
@@ -18,6 +21,7 @@ import {
   Min,
   Validate,
   ValidateIf,
+  ValidateNested,
   ValidationArguments,
   ValidatorConstraint,
   ValidatorConstraintInterface,
@@ -43,10 +47,12 @@ const toDateOrNull = ({ value }: { value: unknown }) => {
 
 const FEE_TYPE_PATTERN = /^[A-Z][A-Z0-9_]{1,49}$/;
 
-@ValidatorConstraint({ name: 'createOfferingFeeSource', async: false })
-class CreateOfferingFeeSourceConstraint implements ValidatorConstraintInterface {
+@ValidatorConstraint({ name: 'createOfferingFeeItemSource', async: false })
+class CreateOfferingFeeItemSourceConstraint
+  implements ValidatorConstraintInterface
+{
   validate(_value: unknown, args: ValidationArguments): boolean {
-    const o = args.object as CreateOfferingFeeDto;
+    const o = args.object as CreateOfferingFeeItemDto;
     if (o.generalFeeId) return true;
     return (
       typeof o.feeType === 'string' &&
@@ -63,7 +69,8 @@ class CreateOfferingFeeSourceConstraint implements ValidatorConstraintInterface 
   }
 }
 
-export class CreateOfferingFeeDto {
+/** One fee definition to attach to every offering in `offeringIds`. */
+export class CreateOfferingFeeItemDto {
   @ApiPropertyOptional({
     description:
       'Option A: existing general fee UUID to attach. Mutually exclusive with feeType/amount/currency.',
@@ -78,7 +85,7 @@ export class CreateOfferingFeeDto {
       'Option B: fee type code (with amount + currency). Ignored when generalFeeId is set.',
     example: 'APPLICATION',
   })
-  @ValidateIf((o: CreateOfferingFeeDto) => !o.generalFeeId)
+  @ValidateIf((o: CreateOfferingFeeItemDto) => !o.generalFeeId)
   @Transform(trimString)
   @IsString()
   @IsNotEmpty({ message: 'feeType is required when generalFeeId is not provided' })
@@ -93,7 +100,7 @@ export class CreateOfferingFeeDto {
     example: 2500,
     minimum: 0,
   })
-  @ValidateIf((o: CreateOfferingFeeDto) => !o.generalFeeId)
+  @ValidateIf((o: CreateOfferingFeeItemDto) => !o.generalFeeId)
   @Type(() => Number)
   @IsNumber(
     { maxDecimalPlaces: 2 },
@@ -106,7 +113,7 @@ export class CreateOfferingFeeDto {
     description: 'Option B: ISO currency code. Required with feeType + amount.',
     example: 'PKR',
   })
-  @ValidateIf((o: CreateOfferingFeeDto) => !o.generalFeeId)
+  @ValidateIf((o: CreateOfferingFeeItemDto) => !o.generalFeeId)
   @Transform(({ value }) =>
     typeof value === 'string' ? value.trim().toUpperCase() : value,
   )
@@ -154,10 +161,41 @@ export class CreateOfferingFeeDto {
 
   @ApiHideProperty()
   @Allow()
-  @Validate(CreateOfferingFeeSourceConstraint, [], {
+  @Validate(CreateOfferingFeeItemSourceConstraint, [], {
     message: 'Provide either generalFeeId, or feeType + amount + currency',
   })
   private readonly _sourceCheck = true;
+}
+
+export class CreateOfferingFeeDto {
+  @ApiProperty({
+    description: 'One or more editable offering UUIDs to attach each fee to',
+    type: [String],
+    example: [
+      'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1',
+      'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2',
+    ],
+    minItems: 1,
+  })
+  @IsArray()
+  @ArrayMinSize(1, { message: 'offeringIds must contain at least one UUID' })
+  @ArrayUnique({ message: 'offeringIds must be unique' })
+  @IsUUID(undefined, {
+    each: true,
+    message: 'each offeringId must be a valid UUID',
+  })
+  offeringIds!: string[];
+
+  @ApiProperty({
+    description: 'One or more fees to attach to every offering in offeringIds',
+    type: [CreateOfferingFeeItemDto],
+    minItems: 1,
+  })
+  @IsArray()
+  @ArrayMinSize(1, { message: 'fees must contain at least one item' })
+  @ValidateNested({ each: true })
+  @Type(() => CreateOfferingFeeItemDto)
+  fees!: CreateOfferingFeeItemDto[];
 }
 
 export class UpdateOfferingFeeDto {
@@ -279,4 +317,9 @@ export class OfferingFeeResponseDto {
 
   @ApiProperty({ example: '50000000-0000-4000-8000-000000005001' })
   updatedBy!: string;
+}
+
+export class OfferingFeeBatchResponseDto {
+  @ApiProperty({ type: [OfferingFeeResponseDto] })
+  items!: OfferingFeeResponseDto[];
 }

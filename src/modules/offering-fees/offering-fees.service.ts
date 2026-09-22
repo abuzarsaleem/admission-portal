@@ -15,6 +15,8 @@ import { OfferingFeeEntity } from '../../database/entities/offering-fee.entity.j
 import { ProgrammeOfferingsService } from '../programme-offerings/programme-offerings.service.js';
 import type {
   CreateOfferingFeeDto,
+  CreateOfferingFeeItemDto,
+  OfferingFeeBatchResponseDto,
   OfferingFeeResponseDto,
   UpdateOfferingFeeDto,
 } from './dto/offering-fee.dto.js';
@@ -32,71 +34,92 @@ export class OfferingFeesService {
     private readonly dataSource: DataSource,
   ) {}
 
-  async createForOffering(
+  async createForOfferings(
     ctx: RequestContext,
-    offeringId: string,
     dto: CreateOfferingFeeDto,
-  ): Promise<OfferingFeeResponseDto> {
-    await this.programmeOfferingsService.ensureEditableOffering(
-      ctx.tenantId,
-      offeringId,
-    );
-    this.assertEffectiveWindow(dto.effectiveFrom ?? null, dto.effectiveTo ?? null);
+  ): Promise<OfferingFeeBatchResponseDto> {
+    for (const item of dto.fees) {
+      this.assertEffectiveWindow(
+        item.effectiveFrom ?? null,
+        item.effectiveTo ?? null,
+      );
+    }
 
-    const result = await this.dataSource.transaction(async (manager) => {
-      let generalFee: GeneralFeeEntity;
+    for (const offeringId of dto.offeringIds) {
+      await this.programmeOfferingsService.ensureEditableOffering(
+        ctx.tenantId,
+        offeringId,
+      );
+    }
 
-      if (dto.generalFeeId) {
-        const existing = await manager.findOne(GeneralFeeEntity, {
-          where: { id: dto.generalFeeId, tenantId: ctx.tenantId },
-        });
-        if (!existing) {
-          throw new NotFoundException(
-            `General fee ${dto.generalFeeId} was not found`,
-          );
+    const responses: OfferingFeeResponseDto[] = [];
+
+    await this.dataSource.transaction(async (manager) => {
+      for (const item of dto.fees) {
+        const generalFee = await this.resolveGeneralFee(manager, ctx, item);
+
+        for (const offeringId of dto.offeringIds) {
+          const offeringFee = manager.create(OfferingFeeEntity, {
+            tenantId: ctx.tenantId,
+            programmeOfferingId: offeringId,
+            generalFeeId: generalFee.id,
+            effectiveFrom: item.effectiveFrom ?? null,
+            effectiveTo: item.effectiveTo ?? null,
+            status: FeeStatus.ACTIVE,
+            sortOrder: item.sortOrder ?? null,
+            createdBy: ctx.userId,
+            updatedBy: ctx.userId,
+          });
+          const saved = await manager.save(offeringFee);
+          responses.push(this.toResponse(saved, generalFee));
         }
-        if (existing.status !== FeeStatus.ACTIVE) {
-          throw new ForbiddenException(
-            `General fee ${dto.generalFeeId} is not ACTIVE`,
-          );
-        }
-        generalFee = existing;
-      } else {
-        await this.assertKnownFeeType(dto.feeType!);
-        generalFee = manager.create(GeneralFeeEntity, {
-          tenantId: ctx.tenantId,
-          feeType: dto.feeType!,
-          amount: dto.amount!.toFixed(2),
-          currency: dto.currency!,
-          status: FeeStatus.ACTIVE,
-          createdBy: ctx.userId,
-          updatedBy: ctx.userId,
-        });
-        generalFee = await manager.save(generalFee);
       }
-
-      const offeringFee = manager.create(OfferingFeeEntity, {
-        tenantId: ctx.tenantId,
-        programmeOfferingId: offeringId,
-        generalFeeId: generalFee.id,
-        effectiveFrom: dto.effectiveFrom ?? null,
-        effectiveTo: dto.effectiveTo ?? null,
-        status: FeeStatus.ACTIVE,
-        sortOrder: dto.sortOrder ?? null,
-        createdBy: ctx.userId,
-        updatedBy: ctx.userId,
-      });
-      const savedOfferingFee = await manager.save(offeringFee);
-      return { offeringFee: savedOfferingFee, generalFee };
     });
 
-    await this.programmeOfferingsService.markConfiguredForSetup(
-      ctx.tenantId,
-      offeringId,
-      ctx.userId,
-    );
+    for (const offeringId of dto.offeringIds) {
+      await this.programmeOfferingsService.markConfiguredForSetup(
+        ctx.tenantId,
+        offeringId,
+        ctx.userId,
+      );
+    }
 
-    return this.toResponse(result.offeringFee, result.generalFee);
+    return { items: responses };
+  }
+
+  private async resolveGeneralFee(
+    manager: import('typeorm').EntityManager,
+    ctx: RequestContext,
+    item: CreateOfferingFeeItemDto,
+  ): Promise<GeneralFeeEntity> {
+    if (item.generalFeeId) {
+      const existing = await manager.findOne(GeneralFeeEntity, {
+        where: { id: item.generalFeeId, tenantId: ctx.tenantId },
+      });
+      if (!existing) {
+        throw new NotFoundException(
+          `General fee ${item.generalFeeId} was not found`,
+        );
+      }
+      if (existing.status !== FeeStatus.ACTIVE) {
+        throw new ForbiddenException(
+          `General fee ${item.generalFeeId} is not ACTIVE`,
+        );
+      }
+      return existing;
+    }
+
+    await this.assertKnownFeeType(item.feeType!);
+    const generalFee = manager.create(GeneralFeeEntity, {
+      tenantId: ctx.tenantId,
+      feeType: item.feeType!,
+      amount: item.amount!.toFixed(2),
+      currency: item.currency!,
+      status: FeeStatus.ACTIVE,
+      createdBy: ctx.userId,
+      updatedBy: ctx.userId,
+    });
+    return manager.save(generalFee);
   }
 
   async update(

@@ -6,6 +6,9 @@
 import { Transform, Type } from 'class-transformer';
 import {
   Allow,
+  ArrayMinSize,
+  ArrayUnique,
+  IsArray,
   IsBoolean,
   IsDate,
   IsEnum,
@@ -19,6 +22,7 @@ import {
   MinLength,
   Validate,
   ValidateIf,
+  ValidateNested,
   ValidationArguments,
   ValidatorConstraint,
   ValidatorConstraintInterface,
@@ -50,12 +54,12 @@ const toDateOrNull = ({ value }: { value: unknown }) => {
   return value;
 };
 
-@ValidatorConstraint({ name: 'createAdmissionCriterionSource', async: false })
-class CreateAdmissionCriterionSourceConstraint
+@ValidatorConstraint({ name: 'createAdmissionCriterionItemSource', async: false })
+class CreateAdmissionCriterionItemSourceConstraint
   implements ValidatorConstraintInterface
 {
   validate(_value: unknown, args: ValidationArguments): boolean {
-    const o = args.object as CreateAdmissionCriterionDto;
+    const o = args.object as CreateAdmissionCriterionItemDto;
     if (o.generalCriteriaId) return true;
     return (
       typeof o.criteriaTypeId === 'string' &&
@@ -70,7 +74,8 @@ class CreateAdmissionCriterionSourceConstraint
   }
 }
 
-export class CreateAdmissionCriterionDto {
+/** One criterion definition to attach to every offering in `offeringIds`. */
+export class CreateAdmissionCriterionItemDto {
   @ApiPropertyOptional({
     description:
       'Option A: existing general criteria UUID to attach. Mutually exclusive with inline criteria fields.',
@@ -85,7 +90,7 @@ export class CreateAdmissionCriterionDto {
       'Option B: criteria type UUID. Required with criteriaRequirement when generalCriteriaId is not set.',
     example: '22222222-2222-4222-8222-222222222002',
   })
-  @ValidateIf((o: CreateAdmissionCriterionDto) => !o.generalCriteriaId)
+  @ValidateIf((o: CreateAdmissionCriterionItemDto) => !o.generalCriteriaId)
   @Transform(toIdString)
   @IsUUID(undefined, { message: 'criteriaTypeId must be a valid UUID' })
   criteriaTypeId?: string;
@@ -96,7 +101,7 @@ export class CreateAdmissionCriterionDto {
     maxLength: 150,
     nullable: true,
   })
-  @ValidateIf((o: CreateAdmissionCriterionDto) => !o.generalCriteriaId)
+  @ValidateIf((o: CreateAdmissionCriterionItemDto) => !o.generalCriteriaId)
   @IsOptional()
   @Transform(trimString)
   @IsString()
@@ -110,7 +115,7 @@ export class CreateAdmissionCriterionDto {
     minLength: 2,
     maxLength: 2000,
   })
-  @ValidateIf((o: CreateAdmissionCriterionDto) => !o.generalCriteriaId)
+  @ValidateIf((o: CreateAdmissionCriterionItemDto) => !o.generalCriteriaId)
   @Transform(trimString)
   @IsString()
   @IsNotEmpty({
@@ -125,7 +130,7 @@ export class CreateAdmissionCriterionDto {
     example: CriteriaOperator.GREATER_THAN_OR_EQUAL,
     nullable: true,
   })
-  @ValidateIf((o: CreateAdmissionCriterionDto) => !o.generalCriteriaId)
+  @ValidateIf((o: CreateAdmissionCriterionItemDto) => !o.generalCriteriaId)
   @IsOptional()
   @IsEnum(CriteriaOperator, {
     message: `criteriaOperator must be one of: ${Object.values(CriteriaOperator).join(', ')}`,
@@ -137,7 +142,7 @@ export class CreateAdmissionCriterionDto {
     maxLength: 30,
     nullable: true,
   })
-  @ValidateIf((o: CreateAdmissionCriterionDto) => !o.generalCriteriaId)
+  @ValidateIf((o: CreateAdmissionCriterionItemDto) => !o.generalCriteriaId)
   @IsOptional()
   @Transform(trimString)
   @IsString()
@@ -149,7 +154,7 @@ export class CreateAdmissionCriterionDto {
     example: true,
     default: true,
   })
-  @ValidateIf((o: CreateAdmissionCriterionDto) => !o.generalCriteriaId)
+  @ValidateIf((o: CreateAdmissionCriterionItemDto) => !o.generalCriteriaId)
   @IsOptional()
   @Type(() => Boolean)
   @IsBoolean()
@@ -181,7 +186,8 @@ export class CreateAdmissionCriterionDto {
   effectiveFrom?: Date | null;
 
   @ApiPropertyOptional({
-    description: 'Effective to (ISO-8601); must be after effectiveFrom when both set',
+    description:
+      'Effective to (ISO-8601); must be after effectiveFrom when both set',
     example: '2026-09-15T23:59:59.000Z',
     nullable: true,
     type: String,
@@ -199,10 +205,42 @@ export class CreateAdmissionCriterionDto {
 
   @ApiHideProperty()
   @Allow()
-  @Validate(CreateAdmissionCriterionSourceConstraint, [], {
-    message: 'Provide either generalCriteriaId, or criteriaTypeId + criteriaRequirement',
+  @Validate(CreateAdmissionCriterionItemSourceConstraint, [], {
+    message:
+      'Provide either generalCriteriaId, or criteriaTypeId + criteriaRequirement',
   })
   private readonly _source = true;
+}
+
+export class CreateAdmissionCriterionDto {
+  @ApiProperty({
+    description: 'One or more editable offering UUIDs to attach each criterion to',
+    type: [String],
+    example: [
+      'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1',
+      'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2',
+    ],
+    minItems: 1,
+  })
+  @IsArray()
+  @ArrayMinSize(1, { message: 'offeringIds must contain at least one UUID' })
+  @ArrayUnique({ message: 'offeringIds must be unique' })
+  @IsUUID(undefined, {
+    each: true,
+    message: 'each offeringId must be a valid UUID',
+  })
+  offeringIds!: string[];
+
+  @ApiProperty({
+    description: 'One or more criteria to attach to every offering in offeringIds',
+    type: [CreateAdmissionCriterionItemDto],
+    minItems: 1,
+  })
+  @IsArray()
+  @ArrayMinSize(1, { message: 'criteria must contain at least one item' })
+  @ValidateNested({ each: true })
+  @Type(() => CreateAdmissionCriterionItemDto)
+  criteria!: CreateAdmissionCriterionItemDto[];
 }
 
 export class UpdateAdmissionCriterionDto {
@@ -309,7 +347,10 @@ export class UpdateAdmissionCriterionDto {
 }
 
 export class AdmissionCriterionResponseDto {
-  @ApiProperty({ example: 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1', description: 'Admission criterion ID' })
+  @ApiProperty({
+    example: 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1',
+    description: 'Admission criterion ID',
+  })
   id!: string;
 
   @ApiProperty({ example: '90000000-0000-4000-8000-000000009001' })
@@ -359,4 +400,9 @@ export class AdmissionCriterionResponseDto {
 
   @ApiProperty({ example: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1' })
   updatedBy!: string;
+}
+
+export class AdmissionCriterionBatchResponseDto {
+  @ApiProperty({ type: [AdmissionCriterionResponseDto] })
+  items!: AdmissionCriterionResponseDto[];
 }

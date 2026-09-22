@@ -28,6 +28,8 @@ import { ApiErrorResponseDto } from '../../common/dto/api-response.dto.js';
 import { ParseUuidPipe } from '../../common/pipes/parse-uuid.pipe.js';
 import {
   CreateOfferingFeeDto,
+  CreateOfferingFeeItemDto,
+  OfferingFeeBatchResponseDto,
   OfferingFeeResponseDto,
   UpdateOfferingFeeDto,
 } from './dto/offering-fee.dto.js';
@@ -36,7 +38,9 @@ import { OfferingFeesService } from './offering-fees.service.js';
 @ApiTags('Fee Configuration')
 @ApiExtraModels(
   OfferingFeeResponseDto,
+  OfferingFeeBatchResponseDto,
   CreateOfferingFeeDto,
+  CreateOfferingFeeItemDto,
   UpdateOfferingFeeDto,
   ApiErrorResponseDto,
 )
@@ -46,53 +50,66 @@ import { OfferingFeesService } from './offering-fees.service.js';
 export class OfferingFeesController {
   constructor(private readonly offeringFeesService: OfferingFeesService) {}
 
-  @Post('offerings/:offeringId/fees')
+  @Post('offerings/fees')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
-    summary: 'Create/configure offering fee',
+    summary: 'Create/configure offering fee(s)',
     description:
-      'Attaches a fee to an editable offering. Use **one** of:\n' +
+      'Attaches one or more fees (`fees[]`) to one or more editable offerings (`offeringIds`). ' +
+      'Each fee item uses **one** of:\n' +
       '1) `generalFeeId` — link an existing general fee master\n' +
       '2) `feeType` + `amount` + `currency` — create a new general fee and link it\n' +
-      'Do not send both.',
-  })
-  @ApiParam({
-    name: 'offeringId',
-    description: 'Offering UUID',
-    example: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1',
+      'Do not send both on the same item.',
   })
   @ApiBody({
     type: CreateOfferingFeeDto,
     examples: {
       attachExisting: {
-        summary: 'Attach existing general fee',
+        summary: 'Attach multiple existing fees to offerings',
         value: {
-          generalFeeId: 'ffffffff-ffff-4fff-8fff-fffffffffff1',
-          effectiveFrom: '2026-07-01T00:00:00.000Z',
-          effectiveTo: '2026-09-15T23:59:59.000Z',
-          sortOrder: 1,
+          offeringIds: [
+            'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1',
+            'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2',
+          ],
+          fees: [
+            {
+              generalFeeId: 'ffffffff-ffff-4fff-8fff-fffffffffff1',
+              effectiveFrom: '2026-07-01T00:00:00.000Z',
+              effectiveTo: '2026-09-15T23:59:59.000Z',
+              sortOrder: 1,
+            },
+            {
+              generalFeeId: 'ffffffff-ffff-4fff-8fff-fffffffffff2',
+              sortOrder: 2,
+            },
+          ],
         },
       },
       createInline: {
-        summary: 'Create fee master inline and attach',
+        summary: 'Create fee masters inline and attach',
         value: {
-          feeType: 'APPLICATION',
-          amount: 2500,
-          currency: 'PKR',
-          effectiveFrom: '2026-07-01T00:00:00.000Z',
-          effectiveTo: '2026-09-15T23:59:59.000Z',
-          sortOrder: 1,
+          offeringIds: ['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1'],
+          fees: [
+            {
+              feeType: 'APPLICATION',
+              amount: 2500,
+              currency: 'PKR',
+              sortOrder: 1,
+            },
+          ],
         },
       },
     },
   })
-  @ApiWrappedCreatedResponse(OfferingFeeResponseDto, 'Offering fee created')
-  createForOffering(
+  @ApiWrappedCreatedResponse(
+    OfferingFeeBatchResponseDto,
+    'Offering fee(s) created',
+  )
+  createForOfferings(
     @ReqContext() ctx: RequestContext,
-    @Param('offeringId', new ParseUuidPipe('offeringId')) offeringId: string,
     @Body() dto: CreateOfferingFeeDto,
-  ): Promise<OfferingFeeResponseDto> {
-    return this.offeringFeesService.createForOffering(ctx, offeringId, dto);
+  ): Promise<OfferingFeeBatchResponseDto> {
+    return this.offeringFeesService.createForOfferings(ctx, dto);
   }
 
   @Patch('fees/:feeConfigurationId')

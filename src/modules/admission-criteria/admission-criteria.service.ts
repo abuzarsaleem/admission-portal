@@ -14,8 +14,10 @@ import { CriteriaTypeEntity } from '../../database/entities/criteria-type.entity
 import { GeneralCriterionEntity } from '../../database/entities/general-criterion.entity.js';
 import { ProgrammeOfferingsService } from '../programme-offerings/programme-offerings.service.js';
 import type {
+  AdmissionCriterionBatchResponseDto,
   AdmissionCriterionResponseDto,
   CreateAdmissionCriterionDto,
+  CreateAdmissionCriterionItemDto,
   UpdateAdmissionCriterionDto,
 } from './dto/admission-criterion.dto.js';
 
@@ -32,65 +34,90 @@ export class AdmissionCriteriaService {
     private readonly dataSource: DataSource,
   ) {}
 
-  async createForOffering(
+  async createForOfferings(
     ctx: RequestContext,
-    offeringId: string,
     dto: CreateAdmissionCriterionDto,
-  ): Promise<AdmissionCriterionResponseDto> {
-    await this.programmeOfferingsService.ensureEditableOffering(
-      ctx.tenantId,
-      offeringId,
-    );
-    this.assertEffectiveWindow(dto.effectiveFrom ?? null, dto.effectiveTo ?? null);
+  ): Promise<AdmissionCriterionBatchResponseDto> {
+    for (const item of dto.criteria) {
+      this.assertEffectiveWindow(
+        item.effectiveFrom ?? null,
+        item.effectiveTo ?? null,
+      );
+    }
 
-    const saved = await this.dataSource.transaction(async (manager) => {
-      let general: GeneralCriterionEntity;
+    for (const offeringId of dto.offeringIds) {
+      await this.programmeOfferingsService.ensureEditableOffering(
+        ctx.tenantId,
+        offeringId,
+      );
+    }
 
-      if (dto.generalCriteriaId) {
-        const existing = await manager.findOne(GeneralCriterionEntity, {
-          where: { id: dto.generalCriteriaId, tenantId: ctx.tenantId },
-        });
-        if (!existing) {
-          throw new NotFoundException(
-            `General criteria ${dto.generalCriteriaId} was not found`,
-          );
+    const responses: AdmissionCriterionResponseDto[] = [];
+
+    await this.dataSource.transaction(async (manager) => {
+      for (const item of dto.criteria) {
+        const general = await this.resolveGeneralCriterion(
+          manager,
+          ctx,
+          item,
+        );
+
+        for (const offeringId of dto.offeringIds) {
+          const criterion = manager.create(AdmissionCriterionEntity, {
+            tenantId: ctx.tenantId,
+            programmeOfferingId: offeringId,
+            generalCriteriaId: general.id,
+            sequenceNo: item.sequenceNo ?? null,
+            effectiveFrom: item.effectiveFrom ?? null,
+            effectiveTo: item.effectiveTo ?? null,
+            createdBy: ctx.userId,
+            updatedBy: ctx.userId,
+          });
+          const savedCriterion = await manager.save(criterion);
+          responses.push(this.toResponse(savedCriterion, general));
         }
-        general = existing;
-      } else {
-        await this.assertActiveCriteriaType(dto.criteriaTypeId!);
-        general = manager.create(GeneralCriterionEntity, {
-          tenantId: ctx.tenantId,
-          criteriaTypeId: dto.criteriaTypeId!,
-          criteriaName: dto.criteriaName ?? null,
-          criteriaRequirement: dto.criteriaRequirement!,
-          criteriaOperator: dto.criteriaOperator ?? null,
-          criteriaUnit: dto.criteriaUnit ?? null,
-          mandatory: dto.mandatory ?? true,
-        });
-        general = await manager.save(general);
       }
-
-      const criterion = manager.create(AdmissionCriterionEntity, {
-        tenantId: ctx.tenantId,
-        programmeOfferingId: offeringId,
-        generalCriteriaId: general.id,
-        sequenceNo: dto.sequenceNo ?? null,
-        effectiveFrom: dto.effectiveFrom ?? null,
-        effectiveTo: dto.effectiveTo ?? null,
-        createdBy: ctx.userId,
-        updatedBy: ctx.userId,
-      });
-      const savedCriterion = await manager.save(criterion);
-      return { criterion: savedCriterion, general };
     });
 
-    await this.programmeOfferingsService.markConfiguredForSetup(
-      ctx.tenantId,
-      offeringId,
-      ctx.userId,
-    );
+    for (const offeringId of dto.offeringIds) {
+      await this.programmeOfferingsService.markConfiguredForSetup(
+        ctx.tenantId,
+        offeringId,
+        ctx.userId,
+      );
+    }
 
-    return this.toResponse(saved.criterion, saved.general);
+    return { items: responses };
+  }
+
+  private async resolveGeneralCriterion(
+    manager: import('typeorm').EntityManager,
+    ctx: RequestContext,
+    item: CreateAdmissionCriterionItemDto,
+  ): Promise<GeneralCriterionEntity> {
+    if (item.generalCriteriaId) {
+      const existing = await manager.findOne(GeneralCriterionEntity, {
+        where: { id: item.generalCriteriaId, tenantId: ctx.tenantId },
+      });
+      if (!existing) {
+        throw new NotFoundException(
+          `General criteria ${item.generalCriteriaId} was not found`,
+        );
+      }
+      return existing;
+    }
+
+    await this.assertActiveCriteriaType(item.criteriaTypeId!);
+    const general = manager.create(GeneralCriterionEntity, {
+      tenantId: ctx.tenantId,
+      criteriaTypeId: item.criteriaTypeId!,
+      criteriaName: item.criteriaName ?? null,
+      criteriaRequirement: item.criteriaRequirement!,
+      criteriaOperator: item.criteriaOperator ?? null,
+      criteriaUnit: item.criteriaUnit ?? null,
+      mandatory: item.mandatory ?? true,
+    });
+    return manager.save(general);
   }
 
   async update(
