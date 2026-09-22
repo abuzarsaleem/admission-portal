@@ -1,20 +1,20 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import { IntakeStatusBadge } from '@/components/shared/IntakeStatusBadge'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { ReturnIntakeDrawer } from '@/components/intakes/ReturnIntakeDrawer'
 import { IntakeReviewSkeleton } from '@/components/shared/LoadingSkeletons'
 import { ReviewSubmitStep } from '@/components/intakes/steps/ReviewSubmitStep'
 import { ApiError } from '@/lib/api/client'
-import { closeIntake, getIntake, publishIntake } from '@/lib/api/intakes'
-import { listDepartments } from '@/lib/api/departments'
-import { listProgrammes } from '@/lib/api/programmes'
-import type { IntakeStatus } from '@/lib/api/types'
-import { loadOfferingConfigurationState, loadOfferingState } from '@/lib/intake-flow-api'
-import { intakeToFlowData, toUiIntakeStatus } from '@/lib/intake-mappers'
+import { closeIntake, getIntakeReview, publishIntake } from '@/lib/api/intakes'
+import { getDepartment } from '@/lib/api/departments'
+import { getProgramme } from '@/lib/api/programmes'
+import type { IntakeReviewPackage, IntakeStatus } from '@/lib/api/types'
+import { loadOfferingConfigurationState } from '@/lib/intake-flow-api'
+import { intakeToFlowData } from '@/lib/intake-mappers'
 import { loadIntakeMetadata } from '@/lib/intake-metadata-storage'
 import { toUiDegreeLevel } from '@/lib/catalog-mappers'
 import {
@@ -22,14 +22,8 @@ import {
   defaultIntakeFlowData,
   type IntakeFlowData,
   type IntakeProgrammeOption,
+  type ProgrammeOfferingState,
 } from '@/types/intake-flow'
-
-const statusStyles = {
-  Draft: 'bg-[#e3edff] text-[#0644ff]',
-  'Under Review': 'bg-[#fef3c7] text-[#b45309]',
-  Published: 'bg-[#d9f8eb] text-[#057a55]',
-  Closed: 'bg-[#e9eef7] text-[#294477]',
-} as const
 
 export function IntakeReviewPage() {
   const { intakeId } = useParams()
@@ -37,6 +31,7 @@ export function IntakeReviewPage() {
 
   const [data, setData] = useState<IntakeFlowData>(defaultIntakeFlowData)
   const [programmes, setProgrammes] = useState<IntakeProgrammeOption[]>([])
+  const [review, setReview] = useState<IntakeReviewPackage | null>(null)
   const [intakeStatus, setIntakeStatus] = useState<IntakeStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
@@ -45,24 +40,6 @@ export function IntakeReviewPage() {
   const [closeOpen, setCloseOpen] = useState(false)
   const [returnOpen, setReturnOpen] = useState(false)
 
-  const loadProgrammes = useCallback(async () => {
-    const [programmeList, departmentList] = await Promise.all([
-      listProgrammes({ page: 1, limit: 100, status: 'ACTIVE' }),
-      listDepartments({ page: 1, limit: 100, status: 'ACTIVE' }),
-    ])
-
-    setProgrammes(
-      programmeList.items.map(item => ({
-        id: item.id,
-        name: item.name,
-        code: item.code,
-        level: toUiDegreeLevel(item.degreeLevel),
-        departmentName:
-          departmentList.items.find(department => department.id === item.departmentId)?.name ?? '—',
-      })),
-    )
-  }, [])
-
   useEffect(() => {
     async function load() {
       if (!intakeId) return
@@ -70,20 +47,58 @@ export function IntakeReviewPage() {
       setLoading(true)
       setNotFound(false)
       try {
-        await loadProgrammes()
-        const [intake, offeringState] = await Promise.all([getIntake(intakeId), loadOfferingState(intakeId)])
-        const loadedConfigs = await loadOfferingConfigurationState(offeringState.programmeOfferings)
+        const reviewPackage = await getIntakeReview(intakeId)
+        const programmeOfferings: Record<string, ProgrammeOfferingState> = {}
+        for (const offering of reviewPackage.offerings) {
+          programmeOfferings[offering.programmeId] = {
+            offeringId: offering.offeringId,
+            publishedDescription: offering.publishedDescription,
+          }
+        }
+
+        const selectedProgrammes = reviewPackage.offerings.map(item => item.programmeId)
+        const [loaded, programmeResults] = await Promise.all([
+          loadOfferingConfigurationState(programmeOfferings),
+          Promise.all(selectedProgrammes.map(programmeId => getProgramme(programmeId))),
+        ])
+
+        const departmentIds = [...new Set(programmeResults.map(item => item.departmentId))]
+        const departmentResults = await Promise.all(
+          departmentIds.map(async departmentId => {
+            try {
+              return await getDepartment(departmentId)
+            } catch {
+              return null
+            }
+          }),
+        )
+        const departmentMap = new Map(
+          departmentResults.filter(Boolean).map(department => [department!.id, department!.name]),
+        )
+
         const metadata = loadIntakeMetadata(intakeId)
 
-        setIntakeStatus(intake.status)
+        setReview(reviewPackage)
+        setIntakeStatus(reviewPackage.intake.status)
+        setProgrammes(
+          programmeResults.map(item => ({
+            id: item.id,
+            name: item.name,
+            code: item.code,
+            level: toUiDegreeLevel(item.degreeLevel),
+            departmentName: departmentMap.get(item.departmentId) ?? '—',
+          })),
+        )
         setData({
-          ...intakeToFlowData(intake),
+          ...intakeToFlowData(reviewPackage.intake),
           academicYear: metadata?.academicYear ?? '',
           intakeType: metadata?.intakeType ?? '',
           description: metadata?.description ?? '',
-          selectedProgrammes: offeringState.selectedProgrammes,
-          programmeOfferings: offeringState.programmeOfferings,
-          programmeConfigs: ensureProgrammeConfigs(offeringState.selectedProgrammes, loadedConfigs),
+          selectedProgrammes,
+          programmeOfferings,
+          programmeConfigs: ensureProgrammeConfigs(selectedProgrammes, loaded.configs),
+          criteriaLabels: loaded.criteriaLabels,
+          feeLabels: loaded.feeLabels,
         })
       } catch (error) {
         if (error instanceof ApiError && error.statusCode === 404) {
@@ -98,7 +113,7 @@ export function IntakeReviewPage() {
     }
 
     load()
-  }, [intakeId, loadProgrammes])
+  }, [intakeId])
 
   if (!intakeId) {
     return <Navigate to="/intakes" replace />
@@ -113,8 +128,6 @@ export function IntakeReviewPage() {
   }
 
   const activeIntakeId = intakeId
-  const uiStatus = toUiIntakeStatus(intakeStatus)
-
   async function handlePublish() {
     setActionLoading(true)
     try {
@@ -161,7 +174,7 @@ export function IntakeReviewPage() {
 
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <h1 className="text-3xl font-bold tracking-tight text-[#071759]">Intake Review</h1>
-        <Badge className={`border-0 ${statusStyles[uiStatus]}`}>{uiStatus}</Badge>
+        <IntakeStatusBadge status={intakeStatus} />
         {data.name && (
           <span className="text-lg text-[#6374ab]">
             {data.name}
@@ -174,7 +187,13 @@ export function IntakeReviewPage() {
         Review the intake configuration below. Publish when ready, return with feedback, or close a published intake.
       </p>
 
-      <ReviewSubmitStep data={data} programmes={programmes} intakeId={intakeId} mode="publication" />
+      <ReviewSubmitStep
+        data={data}
+        programmes={programmes}
+        intakeId={intakeId}
+        mode="publication"
+        reviewPackage={review}
+      />
 
       <div className="sticky bottom-0 -mx-5 mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-[#e4e9f4] bg-[#f8faff] px-5 py-4 lg:-mx-7 lg:px-7">
         <Link to="/intakes">

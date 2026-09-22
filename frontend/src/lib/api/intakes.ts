@@ -6,6 +6,7 @@ import type {
   IntakeListResponse,
   IntakeResponse,
   IntakeReviewPackage,
+  IntakeStatusSummary,
   IntakeWorkflowResponse,
   ListIntakesParams,
   ReturnIntakeRequest,
@@ -18,6 +19,11 @@ function intakeWorkflowPath(intakeId: string, action: string) {
 
 export async function listIntakes(params: ListIntakesParams = {}) {
   const response = await apiGet<IntakeListResponse>(API_ENDPOINTS.intake, params)
+  return response.data
+}
+
+export async function getIntakeStats() {
+  const response = await apiGet<IntakeStatusSummary>(API_ENDPOINTS.intakeStats)
   return response.data
 }
 

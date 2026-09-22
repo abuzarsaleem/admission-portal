@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Field } from '@/components/catalog/Field'
 import { Metric } from '@/components/catalog/Metric'
@@ -101,8 +101,8 @@ export function CatalogModulePage({ moduleKey }: CatalogModulePageProps) {
         <Metric value={metrics.inactive} label={inactiveLabel} icon={CircleDollarSign} />
       </section>
 
-      <Card className="overflow-hidden border-[#e1e8f5] shadow-none">
-        <div className="flex flex-wrap gap-4 p-3">
+      <Card className="gap-0 overflow-hidden border-[#e1e8f5] py-0 shadow-none">
+        <div className="flex flex-wrap items-end gap-4 border-b border-[#e4e9f4] p-4">
           <div className="flex h-10 w-full max-w-95 items-center gap-2 rounded-md bg-[#f1f5fb] px-3">
             <Search className="h-4 w-4" />
             <Input
@@ -113,7 +113,7 @@ export function CatalogModulePage({ moduleKey }: CatalogModulePageProps) {
             />
           </div>
           <div className="ml-auto w-48">
-            <SearchSelect label="Status" value={status} onChange={setStatus} options={['All', 'Active', 'Inactive']} required={false} />
+            <SearchSelect variant="filter" label="Status" value={status} onChange={setStatus} options={['All', 'Active', 'Inactive']} required={false} />
           </div>
         </div>
 
@@ -140,10 +140,7 @@ export function CatalogModulePage({ moduleKey }: CatalogModulePageProps) {
                   <td className="px-4 py-3.5 text-[#354a8d]">{row.detail}</td>
                   <td className="px-4 py-3.5">{row.value}</td>
                   <td className="px-4 py-3.5">
-                    <Badge className={row.status === 'Active' ? 'border-0 bg-[#d9f8eb] text-[#057a55]' : 'border-0 bg-[#e9eef7] text-[#294477]'}>
-                      <span className={`mr-1.5 h-2 w-2 rounded-full ${row.status === 'Active' ? 'bg-[#00a768]' : 'bg-[#31518d]'}`} />
-                      {row.status}
-                    </Badge>
+                    <StatusBadge status={row.status} />
                   </td>
                   <td className="px-4 py-3.5">
                     <Button size="sm" variant="ghost" className="text-[#0644ff]">

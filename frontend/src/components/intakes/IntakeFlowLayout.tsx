@@ -2,7 +2,8 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import type { IntakeStatus } from '@/lib/api/types'
+import { IntakeStatusBadge } from '@/components/shared/IntakeStatusBadge'
 import { HorizontalStepper } from '@/components/intakes/HorizontalStepper'
 import { intakeSteps } from '@/data/intakes-data'
 
@@ -18,6 +19,7 @@ type IntakeFlowLayoutProps = {
   isLastStep?: boolean
   continueLabel?: string
   saving?: boolean
+  intakeStatus?: IntakeStatus
   children: ReactNode
 }
 
@@ -44,6 +46,7 @@ export function IntakeFlowLayout({
   isLastStep = false,
   continueLabel,
   saving = false,
+  intakeStatus = 'DRAFT',
   children,
 }: IntakeFlowLayoutProps) {
   const continueText = saving
@@ -92,7 +95,7 @@ export function IntakeFlowLayout({
 
       <div className="mb-5 flex flex-wrap items-center gap-3">
         <h1 className="text-3xl font-bold tracking-tight text-[#071759]">{step.label}</h1>
-        <Badge className="border-0 bg-[#e3edff] text-[#0644ff] hover:bg-[#e3edff]">Draft</Badge>
+        <IntakeStatusBadge status={intakeStatus} />
         {intakeName && (
           <span className="text-lg text-[#6374ab]">
             {displayName}

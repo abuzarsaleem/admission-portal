@@ -49,8 +49,17 @@ export const intakeStats = {
   closed: 1,
 }
 
-export const academicYears = ['2024-2025', '2025-2026', '2026-2027', '2027-2028', '2028-2029']
 export const intakeTypes = ['Fall', 'Spring', 'Summer', 'Winter']
+
+/** Kept for compatibility; prefer AcademicYearField for selection. */
+export const academicYears = [
+  '2024-2025',
+  '2025-2026',
+  '2026-2027',
+  '2027-2028',
+  '2028-2029',
+  '2029-2030',
+]
 
 export type IntakeCriteriaCatalogItem = {
   id: string

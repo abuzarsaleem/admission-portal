@@ -56,15 +56,16 @@ html { font-family: var(--font-sans); }
 body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--background); color: var(--foreground); font-size: 14px; line-height: 1.45; }
 button, input, textarea { font: inherit; }
 
-/* Match the dense, crisp operational table treatment from the supplied screens. */
-main table { width: calc(100% - 24px) !important; margin: 0 12px; border: 1px solid #e4e9f4; border-radius: 7px; border-collapse: separate; border-spacing: 0; overflow: hidden; }
-main table thead th { height: 38px; border-bottom: 1px solid #e4e9f4; color: #071759; font-size: 12px; font-weight: 700; letter-spacing: -0.01em; }
-main table tbody tr { height: 56px; }
-main table tbody td { border-bottom: 1px solid #e4e9f4; color: #19316f; font-size: 13px; vertical-align: middle; }
-main table tbody tr:last-child td { border-bottom: 0; }
-main table tbody tr:hover td { background: #f8faff; }
-main table thead th:first-child { border-top-left-radius: 7px; }
-main table thead th:last-child { border-top-right-radius: 7px; }
+/* Match the dense, crisp operational table treatment from the supplied screens.
+   Review nested tables opt out via .review-data-table to avoid double borders. */
+main table:not(.review-data-table) { width: calc(100% - 24px) !important; margin: 0 12px; border: 1px solid #e4e9f4; border-radius: 7px; border-collapse: separate; border-spacing: 0; overflow: hidden; }
+main table:not(.review-data-table) thead th { height: 38px; border-bottom: 1px solid #e4e9f4; color: #071759; font-size: 12px; font-weight: 700; letter-spacing: -0.01em; }
+main table:not(.review-data-table) tbody tr { height: 56px; }
+main table:not(.review-data-table) tbody td { border-bottom: 1px solid #e4e9f4; color: #19316f; font-size: 13px; vertical-align: middle; }
+main table:not(.review-data-table) tbody tr:last-child td { border-bottom: 0; }
+main table:not(.review-data-table) tbody tr:hover td { background: #f8faff; }
+main table:not(.review-data-table) thead th:first-child { border-top-left-radius: 7px; }
+main table:not(.review-data-table) thead th:last-child { border-top-right-radius: 7px; }
 
 /* Reference screens use only a fine border on cards and very restrained elevation. */
 [data-slot="card"] { box-shadow: 0 1px 2px rgb(15 31 77 / 0.025); }

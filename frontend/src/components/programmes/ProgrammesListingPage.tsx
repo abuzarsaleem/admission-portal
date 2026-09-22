@@ -8,8 +8,9 @@ import { CreateProgrammeDrawer } from '@/components/programmes/CreateProgrammeDr
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { TableRowsSkeleton } from '@/components/shared/LoadingSkeletons'
 import { ApiError } from '@/lib/api/client'
+import { getDepartmentsProgrammesStats } from '@/lib/api/catalog-stats'
 import { listDepartments } from '@/lib/api/departments'
-import { countProgrammes, deactivateProgramme, listProgrammes } from '@/lib/api/programmes'
+import { deactivateProgramme, listProgrammes } from '@/lib/api/programmes'
 import type { DepartmentResponse, ProgrammeResponse } from '@/lib/api/types'
 import { asText, toApiStatus, toUiDegreeLevel, toUiStatus } from '@/lib/catalog-mappers'
 import { SearchSelect } from '@/components/shared/SearchSelect'
@@ -48,38 +49,40 @@ export function ProgrammesListingPage() {
     [departments],
   )
 
-  const loadData = useCallback(async () => {
+  const loadStats = useCallback(async () => {
+    try {
+      const summary = await getDepartmentsProgrammesStats()
+      setStats({
+        totalProgrammes: summary.totalProgrammes,
+        activeProgrammes: summary.activeProgrammes,
+        inactiveProgrammes: summary.inactiveProgrammes,
+        departments: summary.totalDepartments,
+      })
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : 'Failed to load programme stats.'
+      toast.error(message)
+    }
+  }, [])
+
+  const loadProgrammes = useCallback(async () => {
     setLoading(true)
     try {
       const deptList = await listDepartments({ page: 1, limit: FETCH_LIMIT, status: 'ACTIVE' })
       const selectedDepartment = deptList.items.find(d => d.name === department)
-
-      const [listResult, total, active, inactive] = await Promise.all([
-        listProgrammes({
-          page: 1,
-          limit: FETCH_LIMIT,
-          status: toApiStatus(status as 'Active' | 'Inactive' | 'All'),
-          departmentId: selectedDepartment?.id,
-        }),
-        countProgrammes(),
-        countProgrammes({ status: 'ACTIVE' }),
-        countProgrammes({ status: 'INACTIVE' }),
-      ])
+      const listResult = await listProgrammes({
+        page: 1,
+        limit: FETCH_LIMIT,
+        status: toApiStatus(status as 'Active' | 'Inactive' | 'All'),
+        departmentId: selectedDepartment?.id,
+      })
 
       setDepartments(deptList.items)
-
       setProgrammes(
         listResult.items.map(item => ({
           ...item,
           departmentName: deptList.items.find(d => d.id === item.departmentId)?.name ?? '—',
         })),
       )
-      setStats({
-        totalProgrammes: total,
-        activeProgrammes: active,
-        inactiveProgrammes: inactive,
-        departments: deptList.meta.total,
-      })
     } catch (error) {
       const message = error instanceof ApiError ? error.message : 'Failed to load programmes.'
       toast.error(message)
@@ -89,9 +92,17 @@ export function ProgrammesListingPage() {
     }
   }, [department, status])
 
+  const loadData = useCallback(async () => {
+    await Promise.all([loadStats(), loadProgrammes()])
+  }, [loadStats, loadProgrammes])
+
   useEffect(() => {
-    loadData()
-  }, [loadData])
+    loadStats()
+  }, [loadStats])
+
+  useEffect(() => {
+    loadProgrammes()
+  }, [loadProgrammes])
 
   const filtered = useMemo(() => {
     return programmes.filter(prog => {
@@ -145,7 +156,7 @@ export function ProgrammesListingPage() {
       await deactivateProgramme(deletingProgramme.id)
       toast.success('Programme deactivated')
       setDeletingProgramme(null)
-      loadData()
+      await loadData()
     } catch (error) {
       const message = error instanceof ApiError ? error.message : 'Failed to deactivate programme.'
       toast.error(message)
@@ -179,7 +190,7 @@ export function ProgrammesListingPage() {
         <StatCard value={stats.departments} label="Departments" icon={Building2} />
       </section>
 
-      <Card className="overflow-hidden border-[#e1e8f5] shadow-none">
+      <Card className="gap-0 overflow-hidden border-[#e1e8f5] py-0 shadow-none">
         <div className="flex flex-wrap items-end gap-4 border-b border-[#e4e9f4] p-4">
           <div className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-md bg-[#f1f5fb] px-3 sm:max-w-95">
             <Search className="h-4 w-4 shrink-0 text-[#6374ab]" />

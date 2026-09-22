@@ -50,6 +50,8 @@ export type IntakeFlowData = {
   selectedProgrammes: string[]
   programmeOfferings: Record<string, ProgrammeOfferingState>
   programmeConfigs: Record<string, ProgrammeConfig>
+  criteriaLabels: Record<string, string>
+  feeLabels: Record<string, string>
 }
 
 export const defaultProgrammeConfig = (): ProgrammeConfig => ({
@@ -110,6 +112,8 @@ export const defaultIntakeFlowData: IntakeFlowData = {
   selectedProgrammes: [],
   programmeOfferings: {},
   programmeConfigs: {},
+  criteriaLabels: {},
+  feeLabels: {},
 }
 
 export function createSupportingInfoDraft(

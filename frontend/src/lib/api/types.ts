@@ -67,6 +67,15 @@ export type UpdateDepartmentRequest = {
   status?: ApiStatus
 }
 
+export type DepartmentsProgrammesStats = {
+  totalDepartments: number
+  activeDepartments: number
+  inactiveDepartments: number
+  totalProgrammes: number
+  activeProgrammes: number
+  inactiveProgrammes: number
+}
+
 export type ProgrammeResponse = {
   id: string
   tenantId: string
@@ -238,6 +247,7 @@ export type IntakeResponse = {
   status: IntakeStatus
   applicationOpenAt: string
   applicationCloseAt: string
+  programmesCount: number
   publishedAt: unknown
   publishedBy: unknown
   createdAt: string

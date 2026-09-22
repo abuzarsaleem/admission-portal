@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Plus, Search } from 'lucide-react'
 import { toast } from 'sonner'
@@ -6,20 +6,17 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { CreateProgrammeDrawer } from '@/components/programmes/CreateProgrammeDrawer'
-import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { DepartmentDetailSkeleton } from '@/components/shared/LoadingSkeletons'
 import { SearchSelect } from '@/components/shared/SearchSelect'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { clickableTableRowClass, stopRowClickPropagation, TableRowActions } from '@/components/shared/TableRowActions'
 import { ApiError } from '@/lib/api/client'
 import { getDepartment, listDepartments } from '@/lib/api/departments'
-import { deactivateProgramme, listProgrammes } from '@/lib/api/programmes'
+import { listProgrammes } from '@/lib/api/programmes'
 import type { DepartmentResponse, ProgrammeResponse } from '@/lib/api/types'
 import { asText, toUiDegreeLevel, toUiStatus } from '@/lib/catalog-mappers'
 import { levelFilterOptions } from '@/data/programmes-data'
 import { NotFoundPage } from '@/pages/NotFoundPage'
-
-type TabKey = 'programmes' | 'information'
 
 const PAGE_SIZE = 10
 
@@ -43,7 +40,6 @@ export function DepartmentDetailPage() {
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
 
-  const [activeTab, setActiveTab] = useState<TabKey>('programmes')
   const [query, setQuery] = useState('')
   const [level, setLevel] = useState('All')
   const [status, setStatus] = useState('All')
@@ -51,9 +47,6 @@ export function DepartmentDetailPage() {
 
   const [programmeDrawerOpen, setProgrammeDrawerOpen] = useState(false)
   const [editingProgramme, setEditingProgramme] = useState<ProgrammeResponse | null>(null)
-  const [deletingProgramme, setDeletingProgramme] = useState<ProgrammeResponse | null>(null)
-  const [deletingProgrammeLoading, setDeletingProgrammeLoading] = useState(false)
-
   const loadData = useCallback(async () => {
     if (!departmentId) return
     setLoading(true)
@@ -132,22 +125,6 @@ export function DepartmentDetailPage() {
     setProgrammeDrawerOpen(open)
   }
 
-  async function handleDeactivateProgramme() {
-    if (!deletingProgramme) return
-    setDeletingProgrammeLoading(true)
-    try {
-      await deactivateProgramme(deletingProgramme.id)
-      toast.success('Programme deactivated')
-      setDeletingProgramme(null)
-      await loadData()
-    } catch (error) {
-      const message = error instanceof ApiError ? error.message : 'Failed to deactivate programme.'
-      toast.error(message)
-    } finally {
-      setDeletingProgrammeLoading(false)
-    }
-  }
-
   return (
     <>
       <p className="mb-4 text-sm text-[#40559e]">
@@ -166,7 +143,7 @@ export function DepartmentDetailPage() {
         <p className="mt-2 max-w-3xl text-[#43599e]">{asText(department.description) || '—'}</p>
       </div>
 
-      <Card className="mb-5 grid gap-0 overflow-hidden border-[#e1e8f5] shadow-none sm:grid-cols-2 xl:grid-cols-4">
+      <Card className="mb-5 grid gap-0 overflow-hidden border-[#e1e8f5] py-0 shadow-none sm:grid-cols-2 xl:grid-cols-4">
         <MetaItem label="Department Code" value={department.code} />
         <MetaItem label="Total Programmes" value={String(programmes.length)} bordered />
         <MetaItem
@@ -183,20 +160,7 @@ export function DepartmentDetailPage() {
         />
       </Card>
 
-      <div className="mb-5 border-b border-[#e4e9f4]">
-        <div className="flex gap-6">
-          <TabButton active={activeTab === 'programmes'} onClick={() => setActiveTab('programmes')}>
-            Programmes
-          </TabButton>
-          <TabButton active={activeTab === 'information'} onClick={() => setActiveTab('information')}>
-            Department Information
-          </TabButton>
-        </div>
-      </div>
-
-      {activeTab === 'programmes' ? (
-        <>
-          <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
             <div>
               <h2 className="text-lg font-bold text-[#071759]">Programmes ({programmes.length})</h2>
               <p className="mt-1 text-sm text-[#6374ab]">
@@ -209,7 +173,7 @@ export function DepartmentDetailPage() {
             </Button>
           </div>
 
-          <Card className="overflow-hidden border-[#e1e8f5] shadow-none">
+          <Card className="gap-0 overflow-hidden border-[#e1e8f5] py-0 shadow-none">
             <div className="flex flex-wrap items-end gap-4 border-b border-[#e4e9f4] p-4">
               <div className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-md bg-[#f1f5fb] px-3 sm:max-w-95">
                 <Search className="h-4 w-4 shrink-0 text-[#6374ab]" />
@@ -302,11 +266,7 @@ export function DepartmentDetailPage() {
                           <StatusBadge status={toUiStatus(prog.status)} />
                         </td>
                         <td className="px-4 py-3.5" onClick={stopRowClickPropagation}>
-                          <TableRowActions
-                            onEdit={() => openEditProgrammeDrawer(prog)}
-                            onDelete={() => setDeletingProgramme(prog)}
-                            disableDelete={prog.status === 'INACTIVE'}
-                          />
+                          <TableRowActions onEdit={() => openEditProgrammeDrawer(prog)} />
                         </td>
                       </tr>
                     ))
@@ -355,24 +315,7 @@ export function DepartmentDetailPage() {
                 </Button>
               </div>
             </div>
-          </Card>
-        </>
-      ) : (
-        <Card className="border-[#e1e8f5] p-6 shadow-none">
-          <h2 className="mb-4 text-lg font-bold text-[#071759]">Department Information</h2>
-          <dl className="grid gap-5 sm:grid-cols-2">
-            <InfoField label="Department Name" value={department.name} />
-            <InfoField label="Department Code" value={department.code} />
-            <InfoField label="Status" value={toUiStatus(department.status)} />
-            <InfoField label="Total Programmes" value={String(programmes.length)} />
-            <InfoField label="Created On" value={`${formatDate(department.createdAt)} by ${department.createdBy}`} />
-            <InfoField label="Last Updated" value={`${formatDate(department.updatedAt)} by ${department.updatedBy}`} />
-            <div className="sm:col-span-2">
-              <InfoField label="Description" value={asText(department.description) || '—'} />
-            </div>
-          </dl>
-        </Card>
-      )}
+      </Card>
 
       <CreateProgrammeDrawer
         open={programmeDrawerOpen}
@@ -383,21 +326,6 @@ export function DepartmentDetailPage() {
         defaultDepartmentName={department.name}
       />
 
-      <ConfirmDialog
-        open={Boolean(deletingProgramme)}
-        onOpenChange={open => {
-          if (!open && !deletingProgrammeLoading) setDeletingProgramme(null)
-        }}
-        title="Deactivate programme?"
-        description={
-          deletingProgramme
-            ? `"${deletingProgramme.name}" will be marked inactive and removed from future intake configurations.`
-            : ''
-        }
-        confirmLabel="Deactivate"
-        loading={deletingProgrammeLoading}
-        onConfirm={handleDeactivateProgramme}
-      />
     </>
   )
 }
@@ -422,33 +350,3 @@ function MetaItem({
   )
 }
 
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean
-  onClick: () => void
-  children: ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`-mb-px border-b-2 px-1 pb-3 text-sm font-semibold transition-colors ${
-        active ? 'border-[#0c3cff] text-[#0c3cff]' : 'border-transparent text-[#6374ab] hover:text-[#071759]'
-      }`}
-    >
-      {children}
-    </button>
-  )
-}
-
-function InfoField({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt className="text-xs font-medium text-[#6374ab]">{label}</dt>
-      <dd className="mt-1 text-sm font-medium text-[#071759]">{value}</dd>
-    </div>
-  )
-}

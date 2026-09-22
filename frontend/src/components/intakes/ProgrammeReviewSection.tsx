@@ -1,9 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
-  CheckCircle2,
-  ChevronLeft,
   ChevronRight,
-  ChevronRight as ChevronRightIcon,
   ClipboardList,
   ExternalLink,
   FileText,
@@ -12,8 +9,8 @@ import {
   Receipt,
   Search,
 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { MandatoryBadge } from '@/components/shared/MandatoryBadge'
+import { PillBadge, pillBadgeStyles } from '@/components/shared/PillBadge'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { SearchSelect } from '@/components/shared/SearchSelect'
@@ -109,29 +106,38 @@ function ReviewDataTable({
 }) {
   if (rows.length === 0) {
     return (
-      <div className="rounded-lg border border-[#e4e9f4] bg-white px-4 py-10 text-center text-sm text-[#6374ab]">
+      <div className="rounded-lg border border-[#e4e9f4] bg-[#f8faff] px-4 py-10 text-center text-sm text-[#6374ab]">
         {emptyMessage}
       </div>
     )
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-[#e4e9f4] bg-white">
-      <table className="w-full min-w-[480px] text-left text-sm">
-        <thead className="border-b border-[#e4e9f4] bg-[#f8faff] text-xs font-bold text-[#071759]">
-          <tr>
+    <div className="overflow-hidden rounded-lg border border-[#e4e9f4]">
+      <table className="review-data-table w-full min-w-[480px] border-collapse text-left text-sm">
+        <thead>
+          <tr className="bg-[#f8faff]">
             {columns.map(column => (
-              <th key={column} className="px-4 py-3">
+              <th
+                key={column}
+                className="border-b border-[#e4e9f4] px-4 py-3 text-xs font-bold text-[#071759]"
+              >
                 {column}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody>
+        <tbody className="bg-white">
           {rows.map((cells, rowIndex) => (
-            <tr key={rowIndex} className="border-b border-[#e4e9f4] last:border-b-0">
+            <tr key={rowIndex}>
               {cells.map((cell, cellIndex) => (
-                <td key={cellIndex} className="px-4 py-3.5 text-[#19316f]">
+                <td
+                  key={cellIndex}
+                  className={cn(
+                    'border-0 px-4 py-3.5 text-[#19316f]',
+                    rowIndex < rows.length - 1 && 'border-b border-[#e4e9f4]',
+                  )}
+                >
                   {cell}
                 </td>
               ))}
@@ -151,7 +157,7 @@ function ProgrammeInformationBlock({
   publishedDescription: string
 }) {
   return (
-    <div className="rounded-lg border border-[#e4e9f4] bg-white p-5">
+    <div className="overflow-hidden rounded-lg border border-[#e4e9f4] bg-white p-5">
       <h4 className="text-sm font-bold text-[#071759]">Programme Information</h4>
       <div className="mt-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-[#6374ab]">Description</p>
@@ -181,7 +187,7 @@ function ProgrammeInformationBlock({
   )
 }
 
-function ReviewProgrammeDetail({
+function ReviewProgrammeFullCard({
   programme,
   config,
   criteriaLabels,
@@ -189,10 +195,7 @@ function ReviewProgrammeDetail({
   publishedDescription,
   index,
   total,
-  onPrevious,
-  onNext,
-  hasPrevious,
-  hasNext,
+  counts,
 }: {
   programme: IntakeProgrammeOption
   config: ProgrammeConfig
@@ -201,22 +204,13 @@ function ReviewProgrammeDetail({
   publishedDescription: string
   index: number
   total: number
-  onPrevious: () => void
-  onNext: () => void
-  hasPrevious: boolean
-  hasNext: boolean
+  counts: { criteria: number; fees: number; supporting: number }
 }) {
-  const [activeTab, setActiveTab] = useState<ConfigTab>('criteria')
+  const [open, setOpen] = useState(true)
   const criteria = config.selectedCriteriaIds.map(id => criteriaLabels[id]).filter(Boolean)
   const fees = config.selectedFeeIds.map(id => feeLabels[id]).filter(Boolean)
   const supporting = config.supportingInfo.filter(item => !item.removed)
   const complete = isProgrammeComplete(config)
-
-  const tabs: { id: ConfigTab; label: string; count: number }[] = [
-    { id: 'criteria', label: 'Criteria', count: criteria.length },
-    { id: 'fees', label: 'Fees', count: fees.length },
-    { id: 'supporting', label: 'Supporting Information', count: supporting.length },
-  ]
 
   const criteriaRows = criteria.map((item, i) => {
     const parsed = parseLabelledItem(item)
@@ -224,11 +218,7 @@ function ReviewProgrammeDetail({
       i + 1,
       parsed.title,
       parsed.detail || '—',
-      parsed.isMandatory ? (
-        <Badge className="border-0 bg-[#d9f8eb] text-[#057a55] hover:bg-[#d9f8eb]">Yes</Badge>
-      ) : (
-        <Badge className="border-0 bg-[#f1f5fb] text-[#6374ab] hover:bg-[#f1f5fb]">No</Badge>
-      ),
+      parsed.isMandatory ? <MandatoryBadge mandatory="Yes" /> : <MandatoryBadge mandatory="No" />,
     ]
   })
 
@@ -241,138 +231,98 @@ function ReviewProgrammeDetail({
     i + 1,
     item.title || 'Untitled',
     item.informationType,
-    item.mandatory ? (
-      <Badge className="border-0 bg-[#d9f8eb] text-[#057a55] hover:bg-[#d9f8eb]">Yes</Badge>
-    ) : (
-      <Badge className="border-0 bg-[#f1f5fb] text-[#6374ab] hover:bg-[#f1f5fb]">No</Badge>
-    ),
+    item.mandatory ? <MandatoryBadge mandatory="Yes" /> : <MandatoryBadge mandatory="No" />,
   ])
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-[#6374ab]">
-          Programme {index + 1} of {total}
-        </p>
-        <div className="flex items-center gap-1">
-          <Button
-            type="button"
-            size="icon-sm"
-            variant="outline"
-            className="border-[#dce5f6] text-[#354a8d]"
-            onClick={onPrevious}
-            disabled={!hasPrevious}
-            aria-label="Previous programme"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            type="button"
-            size="icon-sm"
-            variant="outline"
-            className="border-[#dce5f6] text-[#354a8d]"
-            onClick={onNext}
-            disabled={!hasNext}
-            aria-label="Next programme"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="text-2xl font-bold text-[#071759]">{programme.name}</h3>
-          <p className="mt-1 text-sm text-[#6374ab]">
-            {programme.code} · {programme.departmentName} · {programme.level}
+    <article className="overflow-hidden rounded-xl border border-[#e1e8f5] bg-white shadow-none">
+      <button
+        type="button"
+        onClick={() => setOpen(prev => !prev)}
+        className="flex w-full items-start justify-between gap-4 bg-[#f8faff] px-5 py-4 text-left hover:bg-[#f4f7fc]"
+        aria-expanded={open}
+      >
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#6374ab]">
+            Programme {index + 1} of {total}
           </p>
-        </div>
-        {complete && (
-          <Badge className="h-7 gap-1.5 border-0 bg-[#d9f8eb] px-3 text-sm text-[#057a55] hover:bg-[#d9f8eb]">
-            <CheckCircle2 className="h-4 w-4" />
-            Complete
-          </Badge>
-        )}
-      </div>
-
-      <div className="flex flex-wrap gap-1 border-b border-[#e4e9f4]">
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setActiveTab(tab.id)}
-            className={cn(
-              '-mb-px rounded-t-lg px-4 py-2.5 text-sm font-semibold transition-colors',
-              activeTab === tab.id
-                ? 'border border-b-white border-[#e4e9f4] bg-white text-[#0c3cff]'
-                : 'text-[#6374ab] hover:text-[#071759]',
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {activeTab === 'criteria' && (
-        <div>
-          <h4 className="mb-3 text-sm font-bold text-[#071759]">Admission Criteria ({criteria.length})</h4>
-          <ReviewDataTable
-            columns={['#', 'Criteria Type', 'Requirement', 'Mandatory']}
-            rows={criteriaRows}
-            emptyMessage="No admission criteria selected for this programme."
-          />
-        </div>
-      )}
-
-      {activeTab === 'fees' && (
-        <div>
-          <h4 className="mb-3 text-sm font-bold text-[#071759]">Application Fees ({fees.length})</h4>
-          <ReviewDataTable
-            columns={['#', 'Fee Type', 'Amount']}
-            rows={feeRows}
-            emptyMessage="No application fees selected for this programme."
-          />
-        </div>
-      )}
-
-      {activeTab === 'supporting' && (
-        <div>
-          <h4 className="mb-3 text-sm font-bold text-[#071759]">Supporting Information ({supporting.length})</h4>
-          {supporting.length === 0 ? (
-            <div className="rounded-lg border border-[#e4e9f4] bg-white px-4 py-10 text-center text-sm text-[#6374ab]">
-              No supporting information for this programme (optional).
+          <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="text-xl font-bold text-[#071759]">{programme.name}</h3>
+              <p className="mt-1 text-sm text-[#6374ab]">
+                {programme.code} · {programme.departmentName} · {programme.level}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1">
+                <CountBadge label="criteria" count={counts.criteria} />
+                <CountBadge label="fees" count={counts.fees} />
+                <CountBadge label="info" count={counts.supporting} />
+              </div>
             </div>
-          ) : (
-            <div className="space-y-3">
-              <ReviewDataTable
-                columns={['#', 'Title', 'Type', 'Mandatory']}
-                rows={supportingRows}
-                emptyMessage=""
-              />
-              {supporting.map(item => (
-                <div key={item.clientId} className="rounded-lg border border-[#e4e9f4] bg-white p-4">
-                  <p className="text-sm font-semibold text-[#071759]">{item.title}</p>
-                  {item.content && <ExpandableText text={item.content} className="mt-2" />}
-                  {item.referenceUrl.trim() && (
-                    <a
-                      href={item.referenceUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#0c3cff]"
-                    >
-                      Open reference link
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                  )}
-                </div>
-              ))}
-            </div>
+            {complete && <PillBadge label="Complete" style={pillBadgeStyles.published} />}
+          </div>
+        </div>
+        <ChevronRight
+          className={cn(
+            'mt-1 h-5 w-5 shrink-0 text-[#6374ab] transition-transform duration-200',
+            open && 'rotate-90',
           )}
+        />
+      </button>
+
+      {open && (
+        <div className="space-y-6 border-t border-[#e4e9f4] p-5">
+          <section>
+            <h4 className="mb-3 text-sm font-bold text-[#071759]">Admission Criteria ({criteria.length})</h4>
+            <ReviewDataTable
+              columns={['#', 'Criteria Type', 'Requirement', 'Mandatory']}
+              rows={criteriaRows}
+              emptyMessage="No admission criteria selected for this programme."
+            />
+          </section>
+
+          <section>
+            <h4 className="mb-3 text-sm font-bold text-[#071759]">Application Fees ({fees.length})</h4>
+            <ReviewDataTable
+              columns={['#', 'Fee Type', 'Amount']}
+              rows={feeRows}
+              emptyMessage="No application fees selected for this programme."
+            />
+          </section>
+
+          <section>
+            <h4 className="mb-3 text-sm font-bold text-[#071759]">Supporting Information ({supporting.length})</h4>
+            {supporting.length === 0 ? (
+              <div className="rounded-lg border border-[#e4e9f4] bg-[#f8faff] px-4 py-8 text-center text-sm text-[#6374ab]">
+                No supporting information for this programme (optional).
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <ReviewDataTable columns={['#', 'Title', 'Type', 'Mandatory']} rows={supportingRows} emptyMessage="" />
+                {supporting.map(item => (
+                  <div key={item.clientId} className="overflow-hidden rounded-lg border border-[#e4e9f4] bg-[#f8faff] p-4">
+                    <p className="text-sm font-semibold text-[#071759]">{item.title}</p>
+                    {item.content && <ExpandableText text={item.content} className="mt-2" />}
+                    {item.referenceUrl.trim() && (
+                      <a
+                        href={item.referenceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#0c3cff]"
+                      >
+                        Open reference link
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <ProgrammeInformationBlock programme={programme} publishedDescription={publishedDescription} />
         </div>
       )}
-
-      <ProgrammeInformationBlock programme={programme} publishedDescription={publishedDescription} />
-    </div>
+    </article>
   )
 }
 
@@ -498,7 +448,7 @@ function ProgrammeOverviewCard({
   const supporting = config.supportingInfo.filter(item => !item.removed)
 
   return (
-    <Card className="overflow-hidden border-[#e1e8f5] shadow-none">
+    <Card className="gap-0 overflow-hidden border-[#e1e8f5] py-0 shadow-none">
       <button
         type="button"
         onClick={() => setExpanded(prev => !prev)}
@@ -589,89 +539,70 @@ export function ProgrammeReviewSection({
 
   if (isReviewLayout) {
     return (
-      <Card className="overflow-hidden border-[#e1e8f5] shadow-none">
-        <div className="grid lg:grid-cols-[320px_1fr]">
-          <div className="border-b border-[#e4e9f4] bg-[#f8faff] lg:border-r lg:border-b-0">
-            <div className="border-b border-[#e4e9f4] px-4 py-4">
-              <h3 className="text-sm font-bold text-[#071759]">Select a Programme</h3>
-              <div className="mt-3 flex h-10 items-center gap-2 rounded-md border border-[#dce5f6] bg-white px-3">
-                <Search className="h-4 w-4 shrink-0 text-[#6374ab]" />
-                <Input
-                  className="h-auto border-0 bg-transparent p-0 shadow-none focus-visible:ring-0"
-                  value={query}
-                  onChange={event => setQuery(event.target.value)}
-                  placeholder="Search programmes..."
-                />
-              </div>
-            </div>
-            <ul className="max-h-[640px] overflow-y-auto p-3">
-              {filteredProgrammes.map(programme => {
-                const config = programmeConfigs[programme.id]
-                if (!config) return null
-                const counts = resolveCounts(programme.id, config)
-                const isSelected = programme.id === selectedProgrammeId
-
-                return (
-                  <li key={programme.id} className="mb-2">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedProgrammeId(programme.id)}
-                      className={cn(
-                        'flex w-full items-center gap-3 rounded-lg border bg-white px-4 py-3.5 text-left transition-colors',
-                        isSelected
-                          ? 'border-[#0c3cff] border-l-4 bg-[#edf3ff] shadow-sm'
-                          : 'border-[#e4e9f4] hover:border-[#c7d9ff] hover:bg-[#f8faff]',
-                      )}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className={cn('text-sm font-bold', isSelected ? 'text-[#0c3cff]' : 'text-[#071759]')}>
-                          {programme.name}
-                        </p>
-                        <p className="mt-0.5 text-xs text-[#6374ab]">
-                          {programme.code} · {programme.level}
-                        </p>
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          <CountBadge label="criteria" count={counts.criteria} />
-                          <CountBadge label="fees" count={counts.fees} />
-                          <CountBadge label="info" count={counts.supporting} />
-                        </div>
-                      </div>
-                      <ChevronRightIcon className="h-5 w-5 shrink-0 text-[#6374ab]" />
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
+      <Card className="gap-0 overflow-hidden border-[#e1e8f5] py-0 shadow-none">
+        <div className="border-b border-[#e4e9f4] bg-[#f8faff] p-5">
+          <div>
+            <h2 className="text-lg font-bold text-[#071759]">Programme Configurations</h2>
+            <p className="mt-1 text-sm text-[#6374ab]">
+              {programmes.length} programme{programmes.length === 1 ? '' : 's'} in this intake. Each programme is
+              expanded by default — collapse any you want to hide.
+            </p>
           </div>
-
-          <div className="bg-white p-6">
-            {selectedProgramme && selectedConfig ? (
-              <ReviewProgrammeDetail
-                programme={selectedProgramme}
-                config={selectedConfig}
-                criteriaLabels={criteriaLabels}
-                feeLabels={feeLabels}
-                publishedDescription={programmeOfferings[selectedProgramme.id]?.publishedDescription ?? ''}
-                index={selectedIndex}
-                total={filteredProgrammes.length}
-                onPrevious={() => setSelectedProgrammeId(filteredProgrammes[selectedIndex - 1]?.id ?? null)}
-                onNext={() => setSelectedProgrammeId(filteredProgrammes[selectedIndex + 1]?.id ?? null)}
-                hasPrevious={selectedIndex > 0}
-                hasNext={selectedIndex < filteredProgrammes.length - 1}
+          <div className="mt-4 flex flex-wrap items-end gap-3">
+            <div className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-md border border-[#dce5f6] bg-white px-3 sm:max-w-xs">
+              <Search className="h-4 w-4 shrink-0 text-[#6374ab]" />
+              <Input
+                className="h-auto border-0 bg-transparent p-0 shadow-none focus-visible:ring-0"
+                value={query}
+                onChange={event => setQuery(event.target.value)}
+                placeholder="Search programmes..."
               />
-            ) : (
-              <div className="flex min-h-[320px] items-center justify-center text-sm text-[#6374ab]">
-                Select a programme to review its configuration.
-              </div>
-            )}
+            </div>
+            <div className="w-full sm:w-44">
+              <SearchSelect
+                variant="filter"
+                label="Department"
+                value={department}
+                onChange={setDepartment}
+                options={departmentOptions}
+                required={false}
+              />
+            </div>
           </div>
+        </div>
+
+        <div className="space-y-5 p-5">
+          {filteredProgrammes.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-[#dce5f6] bg-[#f8faff] px-4 py-12 text-center text-sm text-[#6374ab]">
+              No programmes match your search or filter.
+            </div>
+          ) : (
+            filteredProgrammes.map((programme, index) => {
+              const config = programmeConfigs[programme.id]
+              if (!config) return null
+
+              return (
+                <ReviewProgrammeFullCard
+                  key={programme.id}
+                  programme={programme}
+                  config={config}
+                  criteriaLabels={criteriaLabels}
+                  feeLabels={feeLabels}
+                  publishedDescription={programmeOfferings[programme.id]?.publishedDescription ?? ''}
+                  index={index}
+                  total={filteredProgrammes.length}
+                  counts={resolveCounts(programme.id, config)}
+                />
+              )
+            })
+          )}
         </div>
       </Card>
     )
   }
 
   return (
-    <Card className="overflow-hidden border-[#e1e8f5] shadow-none">
+    <Card className="gap-0 overflow-hidden border-[#e1e8f5] py-0 shadow-none">
       <div className="border-b border-[#e4e9f4] bg-[#f8faff] p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>

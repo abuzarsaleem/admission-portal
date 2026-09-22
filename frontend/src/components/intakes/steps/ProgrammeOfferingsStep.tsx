@@ -61,7 +61,7 @@ export function ProgrammeOfferingsStep({
   }
 
   return (
-    <Card className="overflow-hidden border-[#e1e8f5] shadow-none">
+    <Card className="gap-0 overflow-hidden border-[#e1e8f5] py-0 shadow-none">
       <div className="border-b border-[#e4e9f4] p-6">
         <h2 className="text-lg font-bold text-[#071759]">Select Programmes</h2>
         <p className="mt-1 text-sm text-[#6374ab]">Select the programmes that will be available in this intake.</p>

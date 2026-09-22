@@ -10,6 +10,7 @@ import {
   listOfferingSupportingInformation,
   updateSupportingInformation,
 } from '@/lib/api/supporting-information'
+import { criteriaDisplayName, formatAmount, formatFeeTypeLabel, toUiMandatory } from '@/lib/configuration-mappers'
 import { buildOfferingDescription } from '@/lib/intake-mappers'
 import type {
   IntakeFlowData,
@@ -47,71 +48,85 @@ export async function loadOfferingState(intakeId: string): Promise<{
   }
 }
 
+export type OfferingConfigurationLoadResult = {
+  configs: Record<string, ProgrammeConfig>
+  criteriaLabels: Record<string, string>
+  feeLabels: Record<string, string>
+}
+
 export async function loadOfferingConfigurationState(
   programmeOfferings: Record<string, ProgrammeOfferingState>,
-): Promise<Record<string, ProgrammeConfig>> {
+): Promise<OfferingConfigurationLoadResult> {
   const configs: Record<string, ProgrammeConfig> = {}
+  const criteriaLabels: Record<string, string> = {}
+  const feeLabels: Record<string, string> = {}
   const groupIdsBySignature = new Map<string, string>()
 
-  for (const [programmeId, offering] of Object.entries(programmeOfferings)) {
-    const config = defaultProgrammeConfig()
+  await Promise.all(
+    Object.entries(programmeOfferings).map(async ([programmeId, offering]) => {
+      const config = defaultProgrammeConfig()
 
-    const [criteriaResult, feesResult, supportingResult] = await Promise.all([
-      listOfferingCriteria(offering.offeringId).catch(() => ({ items: [] })),
-      listOfferingFees(offering.offeringId).catch(() => ({ items: [] })),
-      listOfferingSupportingInformation(offering.offeringId).catch(() => ({ items: [] })),
-    ])
+      const [criteriaResult, feesResult, supportingResult] = await Promise.all([
+        listOfferingCriteria(offering.offeringId).catch(() => ({ items: [] })),
+        listOfferingFees(offering.offeringId).catch(() => ({ items: [] })),
+        listOfferingSupportingInformation(offering.offeringId).catch(() => ({ items: [] })),
+      ])
 
-    const sortedCriteria = [...criteriaResult.items].sort(
-      (a, b) => (a.sequenceNo ?? Number.MAX_SAFE_INTEGER) - (b.sequenceNo ?? Number.MAX_SAFE_INTEGER),
-    )
-    for (const criterion of sortedCriteria) {
-      if (!config.selectedCriteriaIds.includes(criterion.generalCriteriaId)) {
-        config.selectedCriteriaIds.push(criterion.generalCriteriaId)
-      }
-      config.offeringCriteria[criterion.generalCriteriaId] = criterion.id
-    }
-
-    const sortedFees = [...feesResult.items].sort(
-      (a, b) => (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER),
-    )
-    for (const fee of sortedFees) {
-      if (!config.selectedFeeIds.includes(fee.generalFeeId)) {
-        config.selectedFeeIds.push(fee.generalFeeId)
-      }
-      config.offeringFees[fee.generalFeeId] = fee.id
-    }
-
-    for (const item of supportingResult.items.filter(entry => entry.status === 'ACTIVE')) {
-      const signature = supportingInfoSignature(item)
-      let groupId = groupIdsBySignature.get(signature)
-      if (!groupId) {
-        groupId = crypto.randomUUID()
-        groupIdsBySignature.set(signature, groupId)
+      const sortedCriteria = [...criteriaResult.items].sort(
+        (a, b) => (a.sequenceNo ?? Number.MAX_SAFE_INTEGER) - (b.sequenceNo ?? Number.MAX_SAFE_INTEGER),
+      )
+      for (const criterion of sortedCriteria) {
+        if (!config.selectedCriteriaIds.includes(criterion.generalCriteriaId)) {
+          config.selectedCriteriaIds.push(criterion.generalCriteriaId)
+        }
+        config.offeringCriteria[criterion.generalCriteriaId] = criterion.id
+        criteriaLabels[criterion.generalCriteriaId] =
+          `${criteriaDisplayName(criterion.criteriaName, 'Criteria')}: ${criterion.criteriaRequirement} (${toUiMandatory(criterion.mandatory) === 'Yes' ? 'Mandatory' : 'Optional'})`
       }
 
-      config.supportingInfo.push({
-        clientId: crypto.randomUUID(),
-        groupId,
-        informationId: item.id,
-        informationType: item.informationType,
-        title: item.title,
-        content: item.content,
-        referenceUrl: typeof item.referenceUrl === 'string' ? item.referenceUrl : '',
-        mandatory: item.mandatory,
-        displayOrder: item.displayOrder,
-      })
-    }
+      const sortedFees = [...feesResult.items].sort(
+        (a, b) => (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER),
+      )
+      for (const fee of sortedFees) {
+        if (!config.selectedFeeIds.includes(fee.generalFeeId)) {
+          config.selectedFeeIds.push(fee.generalFeeId)
+        }
+        config.offeringFees[fee.generalFeeId] = fee.id
+        feeLabels[fee.generalFeeId] =
+          `${formatFeeTypeLabel(fee.feeType)}: ${formatAmount(fee.amount)} ${fee.currency}`
+      }
 
-    if (config.selectedCriteriaIds.length > 0 && config.selectedFeeIds.length > 0) {
-      config.criteriaFeesSaved = true
-      config.supportingInfoSaved = true
-    }
+      for (const item of supportingResult.items.filter(entry => entry.status === 'ACTIVE')) {
+        const signature = supportingInfoSignature(item)
+        let groupId = groupIdsBySignature.get(signature)
+        if (!groupId) {
+          groupId = crypto.randomUUID()
+          groupIdsBySignature.set(signature, groupId)
+        }
 
-    configs[programmeId] = config
-  }
+        config.supportingInfo.push({
+          clientId: crypto.randomUUID(),
+          groupId,
+          informationId: item.id,
+          informationType: item.informationType,
+          title: item.title,
+          content: item.content,
+          referenceUrl: typeof item.referenceUrl === 'string' ? item.referenceUrl : '',
+          mandatory: item.mandatory,
+          displayOrder: item.displayOrder,
+        })
+      }
 
-  return configs
+      if (config.selectedCriteriaIds.length > 0 && config.selectedFeeIds.length > 0) {
+        config.criteriaFeesSaved = true
+        config.supportingInfoSaved = true
+      }
+
+      configs[programmeId] = config
+    }),
+  )
+
+  return { configs, criteriaLabels, feeLabels }
 }
 
 export async function syncProgrammeOfferings(

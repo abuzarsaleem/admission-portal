@@ -5,14 +5,12 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
 import { TableRowsSkeleton } from '@/components/shared/LoadingSkeletons'
+import { IntakeStatusBadge } from '@/components/shared/IntakeStatusBadge'
 import { SearchSelect } from '@/components/shared/SearchSelect'
 import { StatCard } from '@/components/shared/StatCard'
-import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { ApiError } from '@/lib/api/client'
-import { closeIntake, listIntakes } from '@/lib/api/intakes'
-import { listOfferings } from '@/lib/api/offerings'
+import { getIntakeStats, listIntakes } from '@/lib/api/intakes'
 import type { IntakeResponse } from '@/lib/api/types'
 import {
   formatApplicationPeriod,
@@ -25,23 +23,12 @@ import {
 const PAGE_SIZE = 10
 const FETCH_LIMIT = 100
 
-const statusStyles: Record<UiIntakeStatus, string> = {
-  Draft: 'bg-[#e3edff] text-[#0644ff]',
-  'Under Review': 'bg-[#fef3c7] text-[#b45309]',
-  Published: 'bg-[#d9f8eb] text-[#057a55]',
-  Closed: 'bg-[#e9eef7] text-[#294477]',
-}
-
-const statusFilterOptions = ['All', 'Draft', 'Under Review', 'Published', 'Closed']
+const statusFilterOptions = ['All', 'Draft', 'Configured', 'Under Review', 'Published', 'Closed']
 const periodFilterOptions = ['All', 'Open', 'Upcoming', 'Closed']
 const sortOptions = ['Latest Updated', 'Name A - Z', 'Name Z - A']
 
-type IntakeRow = IntakeResponse & {
-  programmesCount: number
-}
-
 function getIntakeRowPath(intakeId: string, uiStatus: UiIntakeStatus) {
-  if (uiStatus === 'Under Review' || uiStatus === 'Published') {
+  if (uiStatus === 'Under Review' || uiStatus === 'Published' || uiStatus === 'Closed') {
     return `/intakes/${intakeId}/review`
   }
   return `/intakes/${intakeId}/configure/intake-information`
@@ -49,7 +36,7 @@ function getIntakeRowPath(intakeId: string, uiStatus: UiIntakeStatus) {
 
 export function IntakesListingPage() {
   const navigate = useNavigate()
-  const [intakes, setIntakes] = useState<IntakeRow[]>([])
+  const [intakes, setIntakes] = useState<IntakeResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState<UiIntakeStatus | 'All'>('All')
@@ -63,10 +50,23 @@ export function IntakesListingPage() {
     published: 0,
     closed: 0,
   })
-  const [closingIntake, setClosingIntake] = useState<IntakeRow | null>(null)
-  const [closeLoading, setCloseLoading] = useState(false)
+  const loadStats = useCallback(async () => {
+    try {
+      const summary = await getIntakeStats()
+      setStats({
+        total: summary.total,
+        draft: summary.draft + summary.configured,
+        underReview: summary.underReview,
+        published: summary.published,
+        closed: summary.closed,
+      })
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : 'Failed to load intake stats.'
+      toast.error(message)
+    }
+  }, [])
 
-  const loadData = useCallback(async () => {
+  const loadIntakes = useCallback(async () => {
     setLoading(true)
     try {
       const listResult = await listIntakes({
@@ -74,25 +74,7 @@ export function IntakesListingPage() {
         limit: FETCH_LIMIT,
         status: toApiIntakeStatus(status),
       })
-
-      const rows = await Promise.all(
-        listResult.items.map(async intake => {
-          const offerings = await listOfferings(intake.id, { page: 1, limit: 1 })
-          return {
-            ...intake,
-            programmesCount: offerings.meta.total,
-          }
-        }),
-      )
-
-      setIntakes(rows)
-      setStats({
-        total: listResult.summary.total,
-        draft: listResult.summary.draft + listResult.summary.configured,
-        underReview: listResult.summary.underReview,
-        published: listResult.summary.published,
-        closed: listResult.summary.closed,
-      })
+      setIntakes(listResult.items)
     } catch (error) {
       const message = error instanceof ApiError ? error.message : 'Failed to load intakes.'
       toast.error(message)
@@ -103,8 +85,12 @@ export function IntakesListingPage() {
   }, [status])
 
   useEffect(() => {
-    loadData()
-  }, [loadData])
+    loadStats()
+  }, [loadStats])
+
+  useEffect(() => {
+    loadIntakes()
+  }, [loadIntakes])
 
   const filtered = useMemo(() => {
     let result = intakes.filter(intake => {
@@ -117,7 +103,8 @@ export function IntakesListingPage() {
         period === 'All' ||
         (period === 'Closed' && uiStatus === 'Closed') ||
         (period === 'Open' && uiStatus === 'Published') ||
-        (period === 'Upcoming' && (uiStatus === 'Draft' || uiStatus === 'Under Review'))
+        (period === 'Upcoming' &&
+          (uiStatus === 'Draft' || uiStatus === 'Configured' || uiStatus === 'Under Review'))
       return matchesQuery && matchesStatus && matchesPeriod
     })
 
@@ -136,22 +123,6 @@ export function IntakesListingPage() {
   const start = filtered.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1
   const end = Math.min(currentPage * PAGE_SIZE, filtered.length)
   const hasFilters = query !== '' || status !== 'All' || period !== 'All' || sortBy !== 'Latest Updated'
-
-  async function handleCloseIntake() {
-    if (!closingIntake) return
-    setCloseLoading(true)
-    try {
-      await closeIntake(closingIntake.id)
-      toast.success('Intake closed')
-      setClosingIntake(null)
-      await loadData()
-    } catch (error) {
-      const message = error instanceof ApiError ? error.message : 'Failed to close intake.'
-      toast.error(message)
-    } finally {
-      setCloseLoading(false)
-    }
-  }
 
   return (
     <>
@@ -181,7 +152,7 @@ export function IntakesListingPage() {
         <StatCard value={stats.closed} label="Closed" dotColor="bg-[#31518d]" dotBg="bg-[#e9eef7]" />
       </section>
 
-      <Card className="overflow-hidden border-[#e1e8f5] shadow-none">
+      <Card className="gap-0 overflow-hidden border-[#e1e8f5] py-0 shadow-none">
         <div className="flex flex-wrap items-end gap-4 border-b border-[#e4e9f4] p-4">
           <div className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-md bg-[#f1f5fb] px-3 sm:max-w-95">
             <Search className="h-4 w-4 shrink-0 text-[#6374ab]" />
@@ -301,33 +272,31 @@ export function IntakesListingPage() {
                       </td>
                       <td className="px-4 py-3.5 text-[#19316f]">{intake.programmesCount}</td>
                       <td className="px-4 py-3.5">
-                        <Badge className={`border-0 ${statusStyles[uiStatus]}`}>{uiStatus}</Badge>
+                        <IntakeStatusBadge status={intake.status} />
                       </td>
                       <td className="px-4 py-3.5 text-[#19316f]">{formatLastUpdated(intake.updatedAt)}</td>
-                      <td className="px-4 py-3.5" onClick={event => event.stopPropagation()}>
+                      <td className="px-4 py-3.5">
                         <div className="flex items-center justify-end gap-2">
                           {uiStatus === 'Under Review' && (
                             <Button
                               size="sm"
-                              className="h-8 px-3 text-xs"
-                              onClick={() => navigate(`/intakes/${intake.id}/review`)}
+                              className="h-8 w-20 px-3 text-xs"
+                              onClick={event => {
+                                event.stopPropagation()
+                                navigate(`/intakes/${intake.id}/review`)
+                              }}
                             >
                               Review
                             </Button>
                           )}
-                          {uiStatus === 'Published' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8 border-[#dce5f6] px-3 text-xs text-[#354a8d]"
-                              onClick={() => setClosingIntake(intake)}
-                            >
-                              Close
-                            </Button>
-                          )}
-                          <span className="inline-flex text-[#6374ab]" aria-hidden>
+                          <button
+                            type="button"
+                            className="inline-flex text-[#6374ab]"
+                            onClick={openIntake}
+                            aria-label={`Open ${intake.intakeName}`}
+                          >
                             <RowChevron className="h-5 w-5" />
-                          </span>
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -380,21 +349,6 @@ export function IntakesListingPage() {
         </div>
       </Card>
 
-      <ConfirmDialog
-        open={Boolean(closingIntake)}
-        onOpenChange={open => {
-          if (!open && !closeLoading) setClosingIntake(null)
-        }}
-        title="Close intake?"
-        description={
-          closingIntake
-            ? `Closing will stop new applications for "${closingIntake.intakeName}" and close all associated offerings.`
-            : ''
-        }
-        confirmLabel="Close intake"
-        loading={closeLoading}
-        onConfirm={handleCloseIntake}
-      />
     </>
   )
 }

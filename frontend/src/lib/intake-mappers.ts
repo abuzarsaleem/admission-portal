@@ -1,7 +1,7 @@
 import type { IntakeResponse, IntakeStatus } from '@/lib/api/types'
 import type { IntakeFlowData } from '@/types/intake-flow'
 
-export type UiIntakeStatus = 'Draft' | 'Under Review' | 'Published' | 'Closed'
+export type UiIntakeStatus = 'Draft' | 'Configured' | 'Under Review' | 'Published' | 'Closed'
 
 const INTAKE_CODE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{1,99}$/
 
@@ -41,8 +41,10 @@ export function formatLastUpdated(iso: string): string {
   return formatDisplayDate(iso)
 }
 
-export function toUiIntakeStatus(status: IntakeStatus): UiIntakeStatus {
+export function intakeStatusLabel(status: IntakeStatus): UiIntakeStatus {
   switch (status) {
+    case 'CONFIGURED':
+      return 'Configured'
     case 'UNDER_REVIEW':
       return 'Under Review'
     case 'PUBLISHED':
@@ -54,9 +56,15 @@ export function toUiIntakeStatus(status: IntakeStatus): UiIntakeStatus {
   }
 }
 
+export function toUiIntakeStatus(status: IntakeStatus): UiIntakeStatus {
+  return intakeStatusLabel(status)
+}
+
 export function toApiIntakeStatus(status: UiIntakeStatus | 'All'): IntakeStatus | undefined {
   if (status === 'All') return undefined
   switch (status) {
+    case 'Configured':
+      return 'CONFIGURED'
     case 'Under Review':
       return 'UNDER_REVIEW'
     case 'Published':
@@ -86,6 +94,8 @@ export function intakeToFlowData(intake: IntakeResponse): IntakeFlowData {
     selectedProgrammes: [],
     programmeOfferings: {},
     programmeConfigs: {},
+    criteriaLabels: {},
+    feeLabels: {},
   }
 }
 

@@ -8,8 +8,8 @@ import { CreateDepartmentDrawer } from '@/components/departments/CreateDepartmen
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { TableRowsSkeleton } from '@/components/shared/LoadingSkeletons'
 import { ApiError } from '@/lib/api/client'
-import { countDepartments, deactivateDepartment, listDepartments } from '@/lib/api/departments'
-import { countProgrammes } from '@/lib/api/programmes'
+import { getDepartmentsProgrammesStats } from '@/lib/api/catalog-stats'
+import { deactivateDepartment, listDepartments } from '@/lib/api/departments'
 import type { DepartmentResponse } from '@/lib/api/types'
 import { asText, toApiStatus, toUiStatus } from '@/lib/catalog-mappers'
 import { SearchSelect } from '@/components/shared/SearchSelect'
@@ -60,24 +60,30 @@ export function DepartmentsListingPage() {
     inactiveDepartments: 0,
   })
 
-  const loadData = useCallback(async () => {
+  const loadStats = useCallback(async () => {
+    try {
+      const summary = await getDepartmentsProgrammesStats()
+      setStats({
+        totalDepartments: summary.totalDepartments,
+        totalProgrammes: summary.totalProgrammes,
+        activeDepartments: summary.activeDepartments,
+        inactiveDepartments: summary.inactiveDepartments,
+      })
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : 'Failed to load department stats.'
+      toast.error(message)
+    }
+  }, [])
+
+  const loadDepartments = useCallback(async () => {
     setLoading(true)
     try {
-      const [listResult, total, active, inactive, programmeTotal] = await Promise.all([
-        listDepartments({ page: 1, limit: FETCH_LIMIT, status: toApiStatus(status as 'Active' | 'Inactive' | 'All') }),
-        countDepartments(),
-        countDepartments('ACTIVE'),
-        countDepartments('INACTIVE'),
-        countProgrammes(),
-      ])
-
-      setDepartments(listResult.items)
-      setStats({
-        totalDepartments: total,
-        totalProgrammes: programmeTotal,
-        activeDepartments: active,
-        inactiveDepartments: inactive,
+      const listResult = await listDepartments({
+        page: 1,
+        limit: FETCH_LIMIT,
+        status: toApiStatus(status as 'Active' | 'Inactive' | 'All'),
       })
+      setDepartments(listResult.items)
     } catch (error) {
       const message = error instanceof ApiError ? error.message : 'Failed to load departments.'
       toast.error(message)
@@ -87,9 +93,17 @@ export function DepartmentsListingPage() {
     }
   }, [status])
 
+  const loadData = useCallback(async () => {
+    await Promise.all([loadStats(), loadDepartments()])
+  }, [loadStats, loadDepartments])
+
   useEffect(() => {
-    loadData()
-  }, [loadData])
+    loadStats()
+  }, [loadStats])
+
+  useEffect(() => {
+    loadDepartments()
+  }, [loadDepartments])
 
   const filtered = useMemo(() => {
     const result = departments.filter(dept =>
@@ -135,7 +149,7 @@ export function DepartmentsListingPage() {
       await deactivateDepartment(deletingDepartment.id)
       toast.success('Department deactivated')
       setDeletingDepartment(null)
-      loadData()
+      await loadData()
     } catch (error) {
       const message = error instanceof ApiError ? error.message : 'Failed to deactivate department.'
       toast.error(message)
@@ -167,7 +181,7 @@ export function DepartmentsListingPage() {
         <StatCard value={stats.inactiveDepartments} label="Inactive Department" dotColor="bg-[#31518d]" dotBg="bg-[#e9eef7]" />
       </section>
 
-      <Card className="overflow-hidden border-[#e1e8f5] shadow-none">
+      <Card className="gap-0 overflow-hidden border-[#e1e8f5] py-0 shadow-none">
         <div className="flex flex-wrap items-end gap-4 border-b border-[#e4e9f4] p-4">
           <div className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-md bg-[#f1f5fb] px-3 sm:max-w-95">
             <Search className="h-4 w-4 shrink-0 text-[#6374ab]" />

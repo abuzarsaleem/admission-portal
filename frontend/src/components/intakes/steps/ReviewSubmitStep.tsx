@@ -3,12 +3,8 @@ import { toast } from 'sonner'
 import { Card } from '@/components/ui/card'
 import { ProgrammeReviewSection } from '@/components/intakes/ProgrammeReviewSection'
 import { ApiError } from '@/lib/api/client'
-import { listCriteriaTypes } from '@/lib/api/criteria-types'
-import { listGeneralCriteria } from '@/lib/api/general-criteria'
-import { listGeneralFees } from '@/lib/api/general-fees'
 import { getIntakeReview } from '@/lib/api/intakes'
 import type { IntakeReviewPackage } from '@/lib/api/types'
-import { criteriaDisplayName, formatAmount, formatFeeTypeLabel, toUiMandatory } from '@/lib/configuration-mappers'
 import { formatDisplayDate, splitIsoToDateTime } from '@/lib/intake-mappers'
 import type { IntakeFlowData, IntakeProgrammeOption } from '@/types/intake-flow'
 
@@ -17,6 +13,8 @@ type ReviewSubmitStepProps = {
   programmes: IntakeProgrammeOption[]
   intakeId: string | null
   mode?: 'configure' | 'publication'
+  /** Pass when parent already loaded the review package to avoid a duplicate fetch. */
+  reviewPackage?: IntakeReviewPackage | null
 }
 
 function formatDateTime(date: string, time: string) {
@@ -25,46 +23,44 @@ function formatDateTime(date: string, time: string) {
   return time ? `${formattedDate}, ${time}` : formattedDate
 }
 
-export function ReviewSubmitStep({ data, programmes, intakeId, mode = 'configure' }: ReviewSubmitStepProps) {
-  const [review, setReview] = useState<IntakeReviewPackage | null>(null)
-  const [criteriaLabels, setCriteriaLabels] = useState<Record<string, string>>({})
-  const [feeLabels, setFeeLabels] = useState<Record<string, string>>({})
+export function ReviewSubmitStep({
+  data,
+  programmes,
+  intakeId,
+  mode = 'configure',
+  reviewPackage = null,
+}: ReviewSubmitStepProps) {
+  const [review, setReview] = useState<IntakeReviewPackage | null>(reviewPackage)
   const selectedProgrammes = programmes.filter(programme => data.selectedProgrammes.includes(programme.id))
 
+  const criteriaLabels = data.criteriaLabels
+  const feeLabels = data.feeLabels
+
   useEffect(() => {
-    async function loadReviewData() {
+    if (reviewPackage) {
+      setReview(reviewPackage)
+      return
+    }
+
+    if (!intakeId) return
+
+    let cancelled = false
+    async function loadReview() {
       try {
-        const [criteriaResult, feesResult, typesResult] = await Promise.all([
-          listGeneralCriteria({ page: 1, limit: 100 }),
-          listGeneralFees({ page: 1, limit: 100, status: 'ACTIVE' }),
-          listCriteriaTypes({ page: 1, limit: 100 }),
-        ])
-
-        const typeMap = new Map(typesResult.items.map(type => [type.id, type.name]))
-        const nextCriteriaLabels: Record<string, string> = {}
-        for (const item of criteriaResult.items) {
-          nextCriteriaLabels[item.id] = `${criteriaDisplayName(item.criteriaName, typeMap.get(item.criteriaTypeId) ?? 'Criteria')}: ${item.criteriaRequirement} (${toUiMandatory(item.mandatory) === 'Yes' ? 'Mandatory' : 'Optional'})`
-        }
-        setCriteriaLabels(nextCriteriaLabels)
-
-        const nextFeeLabels: Record<string, string> = {}
-        for (const item of feesResult.items) {
-          nextFeeLabels[item.id] = `${formatFeeTypeLabel(item.feeType)}: ${formatAmount(item.amount)} ${item.currency}`
-        }
-        setFeeLabels(nextFeeLabels)
-
-        if (intakeId) {
-          const reviewPackage = await getIntakeReview(intakeId)
-          setReview(reviewPackage)
-        }
+        const reviewResult = await getIntakeReview(intakeId!)
+        if (!cancelled) setReview(reviewResult)
       } catch (error) {
+        if (cancelled) return
         const message = error instanceof ApiError ? error.message : 'Failed to load review summary.'
         toast.error(message)
       }
     }
 
-    loadReviewData()
-  }, [intakeId])
+    loadReview()
+    return () => {
+      cancelled = true
+    }
+  }, [intakeId, reviewPackage])
 
   const intakeName = data.name || review?.intake.intakeName || '—'
   const intakeCode = data.code || review?.intake.intakeCode || '—'
@@ -90,24 +86,14 @@ export function ReviewSubmitStep({ data, programmes, intakeId, mode = 'configure
         })()
       : '—'
 
-  const sections = [
-    {
-      title: 'Intake Information',
-      rows: [
-        ['Intake Name', intakeName],
-        ['Intake Code', intakeCode],
-        ['Academic Year', academicYear],
-        ['Intake Type', intakeType],
-        ...(description ? [['Description', description] as [string, string]] : []),
-      ],
-    },
-    {
-      title: 'Application Period',
-      rows: [
-        ['Opens At', opensAt],
-        ['Closes At', closesAt],
-      ],
-    },
+  const intakeOverviewRows: [string, string][] = [
+    ['Intake Name', intakeName],
+    ['Intake Code', intakeCode],
+    ['Academic Year', academicYear],
+    ['Intake Type', intakeType],
+    ['Opens At', opensAt],
+    ['Closes At', closesAt],
+    ...(description ? [['Description', description] as [string, string]] : []),
   ]
 
   return (
@@ -123,19 +109,18 @@ export function ReviewSubmitStep({ data, programmes, intakeId, mode = 'configure
         </Card>
       )}
 
-      {sections.map(section => (
-        <Card key={section.title} className="border-[#e1e8f5] p-6 shadow-none">
-          <h2 className="text-lg font-bold text-[#071759]">{section.title}</h2>
-          <dl className="mt-4 grid gap-3 sm:grid-cols-2">
-            {section.rows.map(([label, value]) => (
-              <div key={label} className={label === 'Description' ? 'sm:col-span-2' : undefined}>
-                <dt className="text-xs font-medium text-[#6374ab]">{label}</dt>
-                <dd className="mt-1 text-sm font-medium text-[#071759]">{value}</dd>
-              </div>
-            ))}
-          </dl>
-        </Card>
-      ))}
+      <Card className="border-[#e1e8f5] p-6 shadow-none">
+        <h2 className="text-lg font-bold text-[#071759]">Intake Overview</h2>
+        <p className="mt-1 text-sm text-[#6374ab]">General intake details and application window.</p>
+        <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {intakeOverviewRows.map(([label, value]) => (
+            <div key={label} className={label === 'Description' ? 'sm:col-span-2 lg:col-span-3' : undefined}>
+              <dt className="text-xs font-medium text-[#6374ab]">{label}</dt>
+              <dd className="mt-1 text-sm font-medium text-[#071759]">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      </Card>
 
       <ProgrammeReviewSection
         programmes={selectedProgrammes}
@@ -143,8 +128,7 @@ export function ReviewSubmitStep({ data, programmes, intakeId, mode = 'configure
         programmeOfferings={data.programmeOfferings}
         criteriaLabels={criteriaLabels}
         feeLabels={feeLabels}
-        variant={mode === 'publication' ? 'review' : 'default'}
-        defaultViewMode="browse"
+        variant="review"
         getCounts={
           review
             ? programmeId => {

@@ -2,8 +2,10 @@ import { Info } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Card } from '@/components/ui/card'
+import { AcademicYearField } from '@/components/shared/AcademicYearField'
 import { SearchSelect } from '@/components/shared/SearchSelect'
-import { academicYears, intakeTypes } from '@/data/intakes-data'
+import { normalizeAcademicYear } from '@/lib/academic-year'
+import { intakeTypes } from '@/data/intakes-data'
 import type { IntakeFlowData } from '@/types/intake-flow'
 
 type IntakeInformationStepProps = {
@@ -39,6 +41,7 @@ export function IntakeInformationStep({ data, onChange, errors, showErrors, onBl
           />
           {err('name') && <p className="text-xs text-red-600">{err('name')}</p>}
         </div>
+
         <div className="space-y-1.5">
           <label className="text-sm font-semibold text-[#071759]">
             Intake Code <span className="text-red-500">*</span>
@@ -57,25 +60,25 @@ export function IntakeInformationStep({ data, onChange, errors, showErrors, onBl
           )}
           {err('code') && <p className="text-xs text-red-600">{err('code')}</p>}
         </div>
-        <SearchSelect
-          label="Academic Year"
+
+        <AcademicYearField
           value={data.academicYear}
-          onChange={v => onChange({ ...data, academicYear: v })}
+          onChange={value => onChange({ ...data, academicYear: normalizeAcademicYear(value) })}
           onBlur={() => onBlur('academicYear')}
-          options={academicYears}
-          placeholder="Select academic year"
-          required={false}
+          error={err('academicYear')}
         />
+
         <SearchSelect
           label="Intake Type"
           value={data.intakeType}
-          onChange={v => onChange({ ...data, intakeType: v })}
+          onChange={value => onChange({ ...data, intakeType: value })}
           onBlur={() => onBlur('intakeType')}
           options={intakeTypes}
           placeholder="Select intake type"
           error={err('intakeType')}
           required={false}
         />
+
         <div className="space-y-1.5 sm:col-span-2">
           <label className="text-sm font-semibold text-[#071759]">Description</label>
           <div className="relative">

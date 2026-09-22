@@ -9,6 +9,7 @@ import { ProgrammeOfferingsStep } from '@/components/intakes/steps/ProgrammeOffe
 import { CriteriaAndFeesStep } from '@/components/intakes/steps/CriteriaAndFeesStep'
 import { SupportingInformationStep } from '@/components/intakes/steps/SupportingInformationStep'
 import { ReviewSubmitStep } from '@/components/intakes/steps/ReviewSubmitStep'
+import type { IntakeStatus } from '@/lib/api/types'
 import { ApiError } from '@/lib/api/client'
 import {
   createIntake,
@@ -164,6 +165,7 @@ export function IntakeFlowPage({ mode }: { mode: 'create' | 'configure' }) {
   const [submitted, setSubmitted] = useState(false)
   const [saving, setSaving] = useState(false)
   const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null)
+  const [intakeStatus, setIntakeStatus] = useState<IntakeStatus>('DRAFT')
 
   const basePath = getFlowBasePath(mode, routeIntakeId)
   const resolvedSlug = stepSlug ? resolveStepSlug(stepSlug) : undefined
@@ -209,7 +211,7 @@ export function IntakeFlowPage({ mode }: { mode: 'create' | 'configure' }) {
           loadOfferingState(routeIntakeId),
         ])
 
-        const loadedConfigs = await loadOfferingConfigurationState(offeringState.programmeOfferings)
+        const loaded = await loadOfferingConfigurationState(offeringState.programmeOfferings)
 
         const metadata = loadIntakeMetadata(routeIntakeId)
 
@@ -220,9 +222,12 @@ export function IntakeFlowPage({ mode }: { mode: 'create' | 'configure' }) {
           description: metadata?.description ?? '',
           selectedProgrammes: offeringState.selectedProgrammes,
           programmeOfferings: offeringState.programmeOfferings,
-          programmeConfigs: ensureProgrammeConfigs(offeringState.selectedProgrammes, loadedConfigs),
+          programmeConfigs: ensureProgrammeConfigs(offeringState.selectedProgrammes, loaded.configs),
+          criteriaLabels: loaded.criteriaLabels,
+          feeLabels: loaded.feeLabels,
         }
         setData(loadedData)
+        setIntakeStatus(intake.status)
         setSavedSnapshot(serializeFlowData(loadedData))
       } catch (error) {
         if (error instanceof ApiError && error.statusCode === 404) {
@@ -464,6 +469,7 @@ export function IntakeFlowPage({ mode }: { mode: 'create' | 'configure' }) {
       mode={mode}
       intakeName={data.name}
       intakeCode={data.code}
+      intakeStatus={intakeStatus}
       currentStep={currentStep}
       saving={saving}
       onStepClick={index => {

@@ -218,12 +218,27 @@ export function CriteriaAndFeesStep({
     }
 
     const programmeConfigs = { ...data.programmeConfigs }
+    const criteriaLabels = { ...data.criteriaLabels }
+    const feeLabels = { ...data.feeLabels }
+
+    for (const criterionId of draft.selectedCriteriaIds) {
+      const item = criteriaCatalog.find(criterion => criterion.id === criterionId)
+      if (!item) continue
+      criteriaLabels[criterionId] =
+        `${criteriaDisplayName(item.criteriaName, item.criteriaTypeName)}: ${item.criteriaRequirement} (${toUiMandatory(item.mandatory) === 'Yes' ? 'Mandatory' : 'Optional'})`
+    }
+    for (const feeId of draft.selectedFeeIds) {
+      const item = feesCatalog.find(fee => fee.id === feeId)
+      if (!item) continue
+      feeLabels[feeId] = `${formatFeeTypeLabel(item.feeType)}: ${formatAmount(item.amount)} ${item.currency}`
+    }
+
     for (const programmeId of batchProgrammeIds) {
       const existing = programmeConfigs[programmeId] ?? defaultProgrammeConfig()
       programmeConfigs[programmeId] = mergeDraftCriteriaAndFees(draft, existing)
     }
 
-    onChange({ ...data, programmeConfigs })
+    onChange({ ...data, programmeConfigs, criteriaLabels, feeLabels })
     toast.success(
       batchProgrammeIds.every(id => isCriteriaFeesConfigured(data.programmeConfigs[id]))
         ? `Configuration updated for ${batchProgrammeIds.length} programme(s)`
@@ -295,7 +310,7 @@ export function CriteriaAndFeesStep({
                 </p>
               </Card>
 
-              <Card className="overflow-hidden border-[#e1e8f5] shadow-none">
+              <Card className="gap-0 overflow-hidden border-[#e1e8f5] py-0 shadow-none">
                 <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#e4e9f4] p-5">
                   <div>
                     <h3 className="text-base font-bold text-[#071759]">Admission Criteria</h3>
@@ -383,7 +398,7 @@ export function CriteriaAndFeesStep({
                 )}
               </Card>
 
-              <Card className="overflow-hidden border-[#e1e8f5] shadow-none">
+              <Card className="gap-0 overflow-hidden border-[#e1e8f5] py-0 shadow-none">
                 <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#e4e9f4] p-5">
                   <div>
                     <h3 className="text-base font-bold text-[#071759]">Application Fees</h3>

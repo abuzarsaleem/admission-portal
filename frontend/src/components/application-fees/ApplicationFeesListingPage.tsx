@@ -156,7 +156,7 @@ export function ApplicationFeesListingPage() {
         <StatCard value={stats.activeFees} label="Active Fees" icon={Check} iconBg="bg-[#e0f9ed] text-[#00a768]" />
       </section>
 
-      <Card className="overflow-hidden border-[#e1e8f5] shadow-none">
+      <Card className="gap-0 overflow-hidden border-[#e1e8f5] py-0 shadow-none">
         <div className="flex flex-wrap items-end gap-4 border-b border-[#e4e9f4] p-4">
           <div className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-md bg-[#f1f5fb] px-3 sm:max-w-95">
             <Search className="h-4 w-4 shrink-0 text-[#6374ab]" />

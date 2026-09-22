@@ -1,5 +1,6 @@
-import { ChevronDown, Menu, Search, Sun } from 'lucide-react'
+import { ChevronDown, Menu, Sun } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { AppNavSearch } from '@/components/layout/AppNavSearch'
 import { useAuth } from '@/context/AuthContext'
 import { getInitials } from '@/lib/auth'
 
@@ -18,11 +19,7 @@ export function AppHeader({ onMenuClick }: AppHeaderProps) {
         <Button variant="ghost" size="icon" className="lg:hidden" onClick={onMenuClick}>
           <Menu />
         </Button>
-        <div className="hidden w-125 items-center gap-3 rounded-md bg-[#f1f5fb] px-3 py-2 sm:flex">
-          <Search className="h-5 w-5 text-[#142b73]" />
-          <span className="text-sm text-[#30478d]">Search anything...</span>
-          <kbd className="ml-auto rounded border border-[#d6e0f2] bg-white px-2 py-0.5 text-xs">⌘ K</kbd>
-        </div>
+        <AppNavSearch />
       </div>
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" className="text-[#142b73]">
