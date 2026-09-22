@@ -87,6 +87,39 @@ export class OfferingFeesService {
     return { items: responses };
   }
 
+  async listByOffering(
+    ctx: RequestContext,
+    offeringId: string,
+  ): Promise<OfferingFeeBatchResponseDto> {
+    await this.programmeOfferingsService.findTenantOffering(
+      ctx.tenantId,
+      offeringId,
+    );
+
+    const fees = await this.offeringFeesRepo.find({
+      where: {
+        tenantId: ctx.tenantId,
+        programmeOfferingId: offeringId,
+      },
+      order: { sortOrder: 'ASC', createdAt: 'ASC' },
+    });
+
+    const items: OfferingFeeResponseDto[] = [];
+    for (const fee of fees) {
+      const generalFee = await this.generalFeesRepo.findOne({
+        where: { id: fee.generalFeeId, tenantId: ctx.tenantId },
+      });
+      if (!generalFee) {
+        throw new NotFoundException(
+          `General fee ${fee.generalFeeId} was not found`,
+        );
+      }
+      items.push(this.toResponse(fee, generalFee));
+    }
+
+    return { items };
+  }
+
   private async resolveGeneralFee(
     manager: import('typeorm').EntityManager,
     ctx: RequestContext,

@@ -1,6 +1,7 @@
 ﻿import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Param,
@@ -49,6 +50,28 @@ import { OfferingFeesService } from './offering-fees.service.js';
 @Controller('admissions')
 export class OfferingFeesController {
   constructor(private readonly offeringFeesService: OfferingFeesService) {}
+
+  @Get('offerings/:offeringId/fees')
+  @ApiOperation({
+    summary: 'List fee configurations for an offering',
+    description:
+      'Returns all fee configurations on the offering (admin view; includes all statuses).',
+  })
+  @ApiParam({
+    name: 'offeringId',
+    description: 'Offering UUID',
+    example: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1',
+  })
+  @ApiWrappedOkResponse(
+    OfferingFeeBatchResponseDto,
+    'Offering fees for offering',
+  )
+  listByOffering(
+    @ReqContext() ctx: RequestContext,
+    @Param('offeringId', new ParseUuidPipe('offeringId')) offeringId: string,
+  ): Promise<OfferingFeeBatchResponseDto> {
+    return this.offeringFeesService.listByOffering(ctx, offeringId);
+  }
 
   @Post('offerings/fees')
   @HttpCode(HttpStatus.CREATED)

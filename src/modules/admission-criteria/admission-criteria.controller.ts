@@ -1,6 +1,7 @@
 ﻿import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Param,
@@ -51,6 +52,28 @@ export class AdmissionCriteriaController {
   constructor(
     private readonly admissionCriteriaService: AdmissionCriteriaService,
   ) {}
+
+  @Get('offerings/:offeringId/criteria')
+  @ApiOperation({
+    summary: 'List admission criteria for an offering',
+    description:
+      'Returns all criteria configured on the offering (admin view; not filtered by effective window).',
+  })
+  @ApiParam({
+    name: 'offeringId',
+    description: 'Offering UUID',
+    example: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1',
+  })
+  @ApiWrappedOkResponse(
+    AdmissionCriterionBatchResponseDto,
+    'Admission criteria for offering',
+  )
+  listByOffering(
+    @ReqContext() ctx: RequestContext,
+    @Param('offeringId', new ParseUuidPipe('offeringId')) offeringId: string,
+  ): Promise<AdmissionCriterionBatchResponseDto> {
+    return this.admissionCriteriaService.listByOffering(ctx, offeringId);
+  }
 
   @Post('offerings/criteria')
   @HttpCode(HttpStatus.CREATED)

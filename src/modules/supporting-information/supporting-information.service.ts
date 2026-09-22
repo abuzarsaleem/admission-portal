@@ -10,6 +10,7 @@ import { SupportingInformationEntity } from '../../database/entities/supporting-
 import { ProgrammeOfferingsService } from '../programme-offerings/programme-offerings.service.js';
 import type {
   CreateSupportingInformationDto,
+  SupportingInformationBatchResponseDto,
   SupportingInformationResponseDto,
   UpdateSupportingInformationDto,
 } from './dto/supporting-information.dto.js';
@@ -22,37 +23,68 @@ export class SupportingInformationService {
     private readonly programmeOfferingsService: ProgrammeOfferingsService,
   ) {}
 
-  async createForOffering(
+  async createForOfferings(
+    ctx: RequestContext,
+    dto: CreateSupportingInformationDto,
+  ): Promise<SupportingInformationBatchResponseDto> {
+    for (const offeringId of dto.offeringIds) {
+      await this.programmeOfferingsService.ensureEditableOffering(
+        ctx.tenantId,
+        offeringId,
+      );
+    }
+
+    const responses: SupportingInformationResponseDto[] = [];
+
+    for (const item of dto.items) {
+      for (const offeringId of dto.offeringIds) {
+        const entity = this.supportingInfoRepo.create({
+          tenantId: ctx.tenantId,
+          programmeOfferingId: offeringId,
+          informationType: item.informationType,
+          title: item.title,
+          content: item.content,
+          referenceUrl: item.referenceUrl ?? null,
+          mandatory: item.mandatory ?? false,
+          displayOrder: item.displayOrder ?? null,
+          status: SupportingInformationStatus.ACTIVE,
+          createdBy: ctx.userId,
+          updatedBy: ctx.userId,
+        });
+        const saved = await this.supportingInfoRepo.save(entity);
+        responses.push(this.toResponse(saved));
+      }
+    }
+
+    for (const offeringId of dto.offeringIds) {
+      await this.programmeOfferingsService.markConfiguredForSetup(
+        ctx.tenantId,
+        offeringId,
+        ctx.userId,
+      );
+    }
+
+    return { items: responses };
+  }
+
+  async listByOffering(
     ctx: RequestContext,
     offeringId: string,
-    dto: CreateSupportingInformationDto,
-  ): Promise<SupportingInformationResponseDto> {
-    await this.programmeOfferingsService.ensureEditableOffering(
+  ): Promise<SupportingInformationBatchResponseDto> {
+    await this.programmeOfferingsService.findTenantOffering(
       ctx.tenantId,
       offeringId,
     );
 
-    const entity = this.supportingInfoRepo.create({
-      tenantId: ctx.tenantId,
-      programmeOfferingId: offeringId,
-      informationType: dto.informationType,
-      title: dto.title,
-      content: dto.content,
-      referenceUrl: dto.referenceUrl ?? null,
-      mandatory: dto.mandatory ?? false,
-      displayOrder: dto.displayOrder ?? null,
-      status: SupportingInformationStatus.ACTIVE,
-      createdBy: ctx.userId,
-      updatedBy: ctx.userId,
+    const rows = await this.supportingInfoRepo.find({
+      where: {
+        tenantId: ctx.tenantId,
+        programmeOfferingId: offeringId,
+      },
+      order: { displayOrder: 'ASC', createdAt: 'ASC' },
     });
 
-    const saved = await this.supportingInfoRepo.save(entity);
-    await this.programmeOfferingsService.markConfiguredForSetup(
-      ctx.tenantId,
-      offeringId,
-      ctx.userId,
-    );
-    return this.toResponse(saved);
+    return { items: rows.map((row) => this.toResponse(row)) };
   }
 
   async update(

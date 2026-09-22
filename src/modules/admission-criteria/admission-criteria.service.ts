@@ -90,6 +90,39 @@ export class AdmissionCriteriaService {
     return { items: responses };
   }
 
+  async listByOffering(
+    ctx: RequestContext,
+    offeringId: string,
+  ): Promise<AdmissionCriterionBatchResponseDto> {
+    await this.programmeOfferingsService.findTenantOffering(
+      ctx.tenantId,
+      offeringId,
+    );
+
+    const criteria = await this.admissionCriteriaRepo.find({
+      where: {
+        tenantId: ctx.tenantId,
+        programmeOfferingId: offeringId,
+      },
+      order: { sequenceNo: 'ASC', createdAt: 'ASC' },
+    });
+
+    const items: AdmissionCriterionResponseDto[] = [];
+    for (const criterion of criteria) {
+      const general = await this.generalCriteriaRepo.findOne({
+        where: { id: criterion.generalCriteriaId, tenantId: ctx.tenantId },
+      });
+      if (!general) {
+        throw new NotFoundException(
+          `General criteria ${criterion.generalCriteriaId} was not found`,
+        );
+      }
+      items.push(this.toResponse(criterion, general));
+    }
+
+    return { items };
+  }
+
   private async resolveGeneralCriterion(
     manager: import('typeorm').EntityManager,
     ctx: RequestContext,

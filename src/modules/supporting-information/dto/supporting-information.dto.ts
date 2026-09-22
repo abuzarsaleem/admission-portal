@@ -6,6 +6,9 @@ import {
 import { Transform, Type } from 'class-transformer';
 import {
   Allow,
+  ArrayMinSize,
+  ArrayUnique,
+  IsArray,
   IsBoolean,
   IsEnum,
   IsInt,
@@ -13,11 +16,13 @@ import {
   IsOptional,
   IsString,
   IsUrl,
+  IsUUID,
   MaxLength,
   Min,
   MinLength,
   Validate,
   ValidateIf,
+  ValidateNested,
 } from 'class-validator';
 import {
   SupportingInformationStatus,
@@ -28,7 +33,8 @@ import { AtLeastOneOfConstraint } from '../../../common/validators/intake.valida
 const trimString = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
 
-export class CreateSupportingInformationDto {
+/** One supporting-information entry to attach to every offering in `offeringIds`. */
+export class CreateSupportingInformationItemDto {
   @ApiProperty({
     enum: SupportingInformationType,
     example: SupportingInformationType.INSTRUCTION,
@@ -93,6 +99,39 @@ export class CreateSupportingInformationDto {
   @IsInt()
   @Min(0)
   displayOrder?: number | null;
+}
+
+export class CreateSupportingInformationDto {
+  @ApiProperty({
+    description:
+      'One or more editable offering UUIDs to attach each supporting-information item to',
+    type: [String],
+    example: [
+      'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1',
+      'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2',
+    ],
+    minItems: 1,
+  })
+  @IsArray()
+  @ArrayMinSize(1, { message: 'offeringIds must contain at least one UUID' })
+  @ArrayUnique({ message: 'offeringIds must be unique' })
+  @IsUUID(undefined, {
+    each: true,
+    message: 'each offeringId must be a valid UUID',
+  })
+  offeringIds!: string[];
+
+  @ApiProperty({
+    description:
+      'One or more supporting-information entries to attach to every offering in offeringIds',
+    type: [CreateSupportingInformationItemDto],
+    minItems: 1,
+  })
+  @IsArray()
+  @ArrayMinSize(1, { message: 'items must contain at least one entry' })
+  @ValidateNested({ each: true })
+  @Type(() => CreateSupportingInformationItemDto)
+  items!: CreateSupportingInformationItemDto[];
 }
 
 export class UpdateSupportingInformationDto {
@@ -212,4 +251,9 @@ export class SupportingInformationResponseDto {
 
   @ApiProperty()
   updatedBy!: string;
+}
+
+export class SupportingInformationBatchResponseDto {
+  @ApiProperty({ type: [SupportingInformationResponseDto] })
+  items!: SupportingInformationResponseDto[];
 }
