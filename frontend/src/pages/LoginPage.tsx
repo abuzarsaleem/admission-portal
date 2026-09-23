@@ -4,6 +4,7 @@ import {
   ArrowRight,
   BookOpen,
   GraduationCap,
+  Loader2,
   Lock,
   Mail,
   Moon,
@@ -60,15 +61,18 @@ export function LoginPage() {
     if (Object.keys(fieldErrors).length > 0) return
 
     setLoading(true)
-    const result = await login(email, password)
-    setLoading(false)
+    try {
+      const result = await login(email, password)
 
-    if (!result.ok) {
-      setErrors({ form: result.message })
-      return
+      if (!result.ok) {
+        setErrors({ form: result.message })
+        return
+      }
+
+      navigate(from, { replace: true })
+    } finally {
+      setLoading(false)
     }
-
-    navigate(from, { replace: true })
   }
 
   const showError = (field: keyof FieldErrors) => (submitted || touched[field]) && errors[field]
@@ -207,10 +211,20 @@ export function LoginPage() {
               <Button
                 type="submit"
                 disabled={loading}
+                aria-busy={loading}
                 className="h-11 w-full rounded-lg bg-[#4f46e5] text-base font-semibold hover:bg-[#4338ca]"
               >
-                Sign In
-                <ArrowRight className="ml-2 h-4 w-4" />
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Signing in...
+                  </>
+                ) : (
+                  <>
+                    Sign In
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </>
+                )}
               </Button>
             </form>
 

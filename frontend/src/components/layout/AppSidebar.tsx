@@ -8,7 +8,7 @@ type AppSidebarProps = {
 }
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-  `flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm ${
+  `flex w-full cursor-pointer items-center gap-3 rounded-md px-3 py-2.5 text-sm ${
     isActive ? 'border-l-2 border-[#a78bfa] bg-[#263d70] font-semibold text-white' : 'text-white hover:bg-white/10'
   }`
 
@@ -60,7 +60,7 @@ export function SidebarFooter() {
       {systemItems.map(item => {
         const Icon = item.icon
         return (
-          <NavLink key={item.to} to={item.to} className="mb-3 flex items-center gap-3 hover:text-white/90">
+          <NavLink key={item.to} to={item.to} className="mb-3 flex cursor-pointer items-center gap-3 hover:text-white/90">
             <Icon className="h-5 w-5" />
             {item.label}
           </NavLink>
@@ -69,7 +69,7 @@ export function SidebarFooter() {
       <button
         type="button"
         onClick={handleLogout}
-        className="flex w-full items-center gap-3 text-left hover:text-white/90"
+        className="flex w-full cursor-pointer items-center gap-3 text-left hover:text-white/90"
       >
         <LogOut className="h-5 w-5" />
         Logout

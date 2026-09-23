@@ -55,6 +55,19 @@
 html { font-family: var(--font-sans); }
 body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--background); color: var(--foreground); font-size: 14px; line-height: 1.45; }
 button, input, textarea { font: inherit; }
+button,
+a,
+[role="button"],
+[data-slot="button"],
+summary {
+  cursor: pointer;
+}
+button:disabled,
+[role="button"][aria-disabled="true"],
+[data-slot="button"][disabled],
+[data-slot="button"][aria-disabled="true"] {
+  cursor: not-allowed;
+}
 
 /* Match the dense, crisp operational table treatment from the supplied screens.
    Review nested tables opt out via .review-data-table to avoid double borders. */
