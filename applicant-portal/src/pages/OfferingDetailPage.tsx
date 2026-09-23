@@ -80,7 +80,7 @@ export function OfferingDetailPage() {
         className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-[#0c3cff] hover:underline"
       >
         <ArrowLeft className="h-4 w-4" />
-        Back to admissions
+        Back to home
       </button>
 
       {loading ? (
@@ -97,8 +97,8 @@ export function OfferingDetailPage() {
       ) : error || !offering ? (
         <div className="rounded-xl border border-red-200 bg-red-50 px-6 py-10 text-center text-sm text-red-700">
           <p>{error ?? 'Programme not found.'}</p>
-          <Link to="/admissions" className="mt-4 inline-block font-medium text-[#0c3cff] hover:underline">
-            Return to admissions
+          <Link to="/" className="mt-4 inline-block font-medium text-[#0c3cff] hover:underline">
+            Return to home
           </Link>
         </div>
       ) : (

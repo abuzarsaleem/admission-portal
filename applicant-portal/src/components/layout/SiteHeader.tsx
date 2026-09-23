@@ -1,11 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { BookOpen, ChevronDown, Sun } from 'lucide-react'
 
-const navItems = [
-  { to: '/', label: 'Home', end: true },
-  { to: '/admissions', label: 'Admissions', end: false },
-] as const
-
 export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-[#e4e9f4] bg-white/95 backdrop-blur">
@@ -19,22 +14,19 @@ export function SiteHeader() {
           </NavLink>
 
           <nav className="flex items-center gap-1">
-            {navItems.map(item => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                className={({ isActive }) =>
-                  `rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                    isActive
-                      ? 'border-b-2 border-[#0c3cff] text-[#0c3cff]'
-                      : 'text-[#354a8d] hover:text-[#071759]'
-                  }`
-                }
-              >
-                {item.label}
-              </NavLink>
-            ))}
+            <NavLink
+              to="/"
+              end
+              className={({ isActive }) =>
+                `rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'border-b-2 border-[#0c3cff] text-[#0c3cff]'
+                    : 'text-[#354a8d] hover:text-[#071759]'
+                }`
+              }
+            >
+              Home
+            </NavLink>
           </nav>
         </div>
 
