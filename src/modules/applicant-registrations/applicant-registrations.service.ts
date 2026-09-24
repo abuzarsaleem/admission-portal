@@ -137,7 +137,6 @@ export class ApplicantRegistrationsService {
           to: email,
           fullName: saved.applicantName,
           verificationLink,
-          applicantId: String(saved.id),
           applicationId: String(saved.applicationId),
           applicationReference: saved.applicationReference,
         });
@@ -145,7 +144,7 @@ export class ApplicantRegistrationsService {
       } catch (error) {
         // Alumni pattern: email failure must not roll back registration.
         this.logger.error(
-          `VERIFICATION_EMAIL_FAILED applicantId=${saved.id}: ${
+          `VERIFICATION_EMAIL_FAILED reference=${saved.applicationReference}: ${
             error instanceof Error ? error.message : String(error)
           }`,
         );

@@ -6,12 +6,14 @@ export class BusinessException extends HttpException {
     message: string,
     status: HttpStatus = HttpStatus.UNPROCESSABLE_ENTITY,
     public readonly code?: string,
+    public readonly details?: unknown,
   ) {
     super(
       {
         statusCode: status,
         message,
         code: code ?? 'BUSINESS_RULE_VIOLATION',
+        ...(details !== undefined ? { details } : {}),
       },
       status,
     );

@@ -37,6 +37,38 @@ export class GeneralCriterionEntity {
   @Column({ type: 'varchar', length: 30, name: 'criteria_unit', nullable: true })
   criteriaUnit!: string | null;
 
+  /** Numeric threshold for machine evaluation (e.g. 65 for MIN_PERCENTAGE). */
+  @Column({
+    type: 'numeric',
+    precision: 10,
+    scale: 2,
+    name: 'criteria_value',
+    nullable: true,
+  })
+  criteriaValue!: string | null;
+
+  /** Upper bound when criteria_operator is BETWEEN. */
+  @Column({
+    type: 'numeric',
+    precision: 10,
+    scale: 2,
+    name: 'criteria_value_max',
+    nullable: true,
+  })
+  criteriaValueMax!: string | null;
+
+  /**
+   * Which academic `degree_type` this rule applies to (e.g. FSC).
+   * Null = evaluate against the applicant's highest percentage overall.
+   */
+  @Column({
+    type: 'varchar',
+    length: 80,
+    name: 'applies_to_degree_type',
+    nullable: true,
+  })
+  appliesToDegreeType!: string | null;
+
   @Column({ type: 'boolean', default: true })
   mandatory!: boolean;
 }

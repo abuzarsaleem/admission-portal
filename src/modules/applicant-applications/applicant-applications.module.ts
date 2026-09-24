@@ -8,7 +8,10 @@ import { ApplicationDeclarationEntity } from '../../database/entities/applicatio
 import { ApplicationProgrammeOptionEntity } from '../../database/entities/application-programme-options.entity.js';
 import { ApplicationProgrammeSelectionEntity } from '../../database/entities/application-programme-selection.entity.js';
 import { ApplicationEntity } from '../../database/entities/application.entity.js';
+import { AdmissionCriterionEntity } from '../../database/entities/admission-criterion.entity.js';
+import { GeneralCriterionEntity } from '../../database/entities/general-criterion.entity.js';
 import { ProgrammeOfferingEntity } from '../../database/entities/programme-offering.entity.js';
+import { OfferingDeclarationEntity } from '../../database/entities/offering-declaration.entity.js';
 import { StorageModule } from '../../integrations/storage/storage.module.js';
 import { ApplicantApplicationsController } from './applicant-applications.controller.js';
 import { ApplicantApplicationsService } from './applicant-applications.service.js';
@@ -26,6 +29,9 @@ import { ApplicantApplicationsService } from './applicant-applications.service.j
       ApplicationContactEntity,
       ApplicationDeclarationEntity,
       ProgrammeOfferingEntity,
+      OfferingDeclarationEntity,
+      AdmissionCriterionEntity,
+      GeneralCriterionEntity,
     ]),
   ],
   controllers: [ApplicantApplicationsController],

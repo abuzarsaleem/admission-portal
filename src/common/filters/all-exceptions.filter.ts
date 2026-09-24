@@ -38,6 +38,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
         ? String((exceptionResponse as { code: string }).code)
         : undefined;
 
+    const details =
+      typeof exceptionResponse === 'object' &&
+      exceptionResponse !== null &&
+      'details' in exceptionResponse
+        ? (exceptionResponse as { details: unknown }).details
+        : undefined;
+
     if (status >= 500) {
       this.logger.error(
         `${request.method} ${request.url}`,
@@ -50,6 +57,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       statusCode: status,
       code,
       message,
+      ...(details !== undefined ? { details } : {}),
       path: request.url,
       timestamp: new Date().toISOString(),
     });

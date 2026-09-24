@@ -48,6 +48,7 @@ import {
   CreateProgrammeDto,
   CreateProfileDto,
   DeclarationStepResponseDto,
+  OfferingDeclarationForApplicantDto,
   ProgrammeStepResponseDto,
   ProfilePhotographResponseDto,
   ProfileStepResponseDto,
@@ -79,7 +80,9 @@ import {
   CreateDeclarationDto,
   UpdateDeclarationDto,
   ProgrammeStepResponseDto,
+  ProfilePhotographResponseDto,
   ProfileStepResponseDto,
+  OfferingDeclarationForApplicantDto,
   ApplicationAddressResponseDto,
   ApplicationContactResponseDto,
   DeclarationStepResponseDto,
@@ -95,7 +98,11 @@ export class ApplicantApplicationsController {
   ) {}
 
   @Get('academic')
-  @ApiOperation({ summary: 'Get academic information and documents' })
+  @ApiOperation({
+    summary: 'Get academic information and documents',
+    description:
+      'Academic documents are linked via academicInformationId → application_academic_documents.',
+  })
   @ApiWrappedOkResponse(AcademicStepResponseDto, 'Academic step')
   getAcademic(
     @CurrentUser() user: AuthUser,
@@ -132,7 +139,8 @@ export class ApplicantApplicationsController {
   @ApiOperation({
     summary: 'Upload academic document',
     description:
-      'Multipart upload to Backblaze B2 (or local storage). Field `file` + `documentType`.',
+      'Multipart upload to Backblaze B2 (or local storage). Field `file` + `documentType`. ' +
+      'Response includes `downloadUrl` (signed) for immediate viewing; do not open `fileReference` directly on a private bucket.',
   })
   @ApiParam({ name: 'academicInformationId', description: 'Academic record UUID' })
   @ApiConsumes('multipart/form-data')
@@ -171,6 +179,28 @@ export class ApplicantApplicationsController {
     );
   }
 
+  @Get('academic/:academicInformationId/documents/:documentId')
+  @ApiOperation({
+    summary: 'Get academic document with a fresh signed download URL',
+  })
+  @ApiParam({ name: 'academicInformationId', description: 'Academic record UUID' })
+  @ApiParam({ name: 'documentId', description: 'Document UUID' })
+  @ApiWrappedOkResponse(AcademicDocumentResponseDto, 'Academic document')
+  getDocument(
+    @CurrentUser() user: AuthUser,
+    @Param('applicantId', new ParseUuidPipe('applicantId')) applicantId: string,
+    @Param('academicInformationId', new ParseUuidPipe('academicInformationId'))
+    academicInformationId: string,
+    @Param('documentId', new ParseUuidPipe('documentId')) documentId: string,
+  ): Promise<AcademicDocumentResponseDto> {
+    return this.applicationsService.getAcademicDocument(
+      user,
+      applicantId,
+      academicInformationId,
+      documentId,
+    );
+  }
+
   @Delete('academic/:academicInformationId/documents/:documentId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Remove academic document before submission' })
@@ -204,7 +234,11 @@ export class ApplicantApplicationsController {
 
   @Post('programme')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create programme selection and preferences' })
+  @ApiOperation({
+    summary: 'Create programme selection and preferences',
+    description:
+      'Preference 1 required. Max preferences from APPLICATION_MAX_PROGRAMME_PREFERENCES (default 2, min 2).',
+  })
   @ApiWrappedCreatedResponse(ProgrammeStepResponseDto, 'Programme created')
   createProgramme(
     @CurrentUser() user: AuthUser,
@@ -226,7 +260,11 @@ export class ApplicantApplicationsController {
   }
 
   @Get('profile')
-  @ApiOperation({ summary: 'Get applicant profile, addresses and contacts' })
+  @ApiOperation({
+    summary: 'Get personal profile (+ linked addresses/contacts)',
+    description:
+      'Profile fields live on applications. Addresses/contacts are separate tables/APIs; GET includes them for convenience. Photograph: POST .../profile/photograph → applications.profile_photograph.',
+  })
   @ApiWrappedOkResponse(ProfileStepResponseDto, 'Profile step')
   getProfile(
     @CurrentUser() user: AuthUser,
@@ -237,7 +275,11 @@ export class ApplicantApplicationsController {
 
   @Post('profile')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create applicant profile' })
+  @ApiOperation({
+    summary: 'Create personal profile fields',
+    description:
+      'Body is personal fields only. Save PRIMARY address (/addresses) and EMERGENCY contact (/contacts) first.',
+  })
   @ApiWrappedCreatedResponse(ProfileStepResponseDto, 'Profile created')
   createProfile(
     @CurrentUser() user: AuthUser,
@@ -248,7 +290,7 @@ export class ApplicantApplicationsController {
   }
 
   @Put('profile')
-  @ApiOperation({ summary: 'Update applicant profile' })
+  @ApiOperation({ summary: 'Update personal profile fields' })
   @ApiWrappedOkResponse(ProfileStepResponseDto, 'Profile updated')
   updateProfile(
     @CurrentUser() user: AuthUser,
@@ -335,7 +377,37 @@ export class ApplicantApplicationsController {
 
   @Post('contacts')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create parent/guardian/emergency contacts' })
+  @ApiOperation({
+    summary: 'Create parent/guardian/emergency contacts',
+    description:
+      'At least one EMERGENCY contact is required (blood relation other than FATHER/GUARDIAN).',
+  })
+  @ApiBody({
+    type: CreateContactsDto,
+    examples: {
+      parentAndEmergency: {
+        summary: 'Parent + emergency (required)',
+        value: {
+          contacts: [
+            {
+              contactType: 'PARENT',
+              name: 'Muhammad Aslam',
+              identityDocumentNumber: '35202-7654321-1',
+              relationship: 'FATHER',
+              occupation: 'Business',
+              mobileNumber: '+923007654321',
+            },
+            {
+              contactType: 'EMERGENCY',
+              name: 'Ali Khan',
+              relationship: 'BROTHER',
+              mobileNumber: '+923001112233',
+            },
+          ],
+        },
+      },
+    },
+  })
   @ApiWrappedCreatedResponse(ApplicationContactResponseDto, 'Contacts created')
   createContacts(
     @CurrentUser() user: AuthUser,
@@ -347,6 +419,34 @@ export class ApplicantApplicationsController {
 
   @Put('contacts')
   @ApiOperation({ summary: 'Update parent/guardian/emergency contacts' })
+  @ApiBody({
+    type: UpdateContactsDto,
+    examples: {
+      updateBoth: {
+        summary: 'Update contacts by id',
+        value: {
+          contacts: [
+            {
+              id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+              contactType: 'PARENT',
+              name: 'Muhammad Aslam',
+              identityDocumentNumber: '35202-7654321-1',
+              relationship: 'FATHER',
+              occupation: 'Business',
+              mobileNumber: '+923007654321',
+            },
+            {
+              id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2',
+              contactType: 'EMERGENCY',
+              name: 'Ali Khan',
+              relationship: 'BROTHER',
+              mobileNumber: '+923001112233',
+            },
+          ],
+        },
+      },
+    },
+  })
   @ApiWrappedOkArrayResponse(ApplicationContactResponseDto, 'Contacts updated')
   updateContacts(
     @CurrentUser() user: AuthUser,
@@ -356,8 +456,29 @@ export class ApplicantApplicationsController {
     return this.applicationsService.updateContacts(user, applicantId, dto);
   }
 
+  @Get('declaration/texts')
+  @ApiOperation({
+    summary: 'List offering declaration texts to accept',
+    description:
+      'Returns ACTIVE offering_declarations for the programmes the applicant selected. ' +
+      'Applicant accepts those IDs via POST/PUT declaration (not free-text).',
+  })
+  @ApiWrappedOkArrayResponse(
+    OfferingDeclarationForApplicantDto,
+    'Offering declarations',
+  )
+  listDeclarationTexts(
+    @CurrentUser() user: AuthUser,
+    @Param('applicantId', new ParseUuidPipe('applicantId')) applicantId: string,
+  ): Promise<OfferingDeclarationForApplicantDto[]> {
+    return this.applicationsService.listOfferingDeclarationsForApplicant(
+      user,
+      applicantId,
+    );
+  }
+
   @Get('declaration')
-  @ApiOperation({ summary: 'Get declaration' })
+  @ApiOperation({ summary: 'Get declaration acceptance state' })
   @ApiWrappedOkResponse(DeclarationStepResponseDto, 'Declaration step')
   getDeclaration(
     @CurrentUser() user: AuthUser,
@@ -368,7 +489,11 @@ export class ApplicantApplicationsController {
 
   @Post('declaration')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create declaration' })
+  @ApiOperation({
+    summary: 'Accept offering declarations',
+    description:
+      'Accept all IDs from GET .../declaration/texts plus disciplinary disclosure. No test centre.',
+  })
   @ApiWrappedCreatedResponse(DeclarationStepResponseDto, 'Declaration created')
   createDeclaration(
     @CurrentUser() user: AuthUser,
@@ -379,7 +504,7 @@ export class ApplicantApplicationsController {
   }
 
   @Put('declaration')
-  @ApiOperation({ summary: 'Update declaration' })
+  @ApiOperation({ summary: 'Update declaration acceptance' })
   @ApiWrappedOkResponse(DeclarationStepResponseDto, 'Declaration updated')
   updateDeclaration(
     @CurrentUser() user: AuthUser,
@@ -391,7 +516,10 @@ export class ApplicantApplicationsController {
 
   @Post('submit')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Submit completed application' })
+  @ApiOperation({
+    summary: 'Submit completed application',
+    description: 'Requires academic → programme → profile → declaration steps saved. Blocks submit if mandatory structured offering criteria (criteriaValue) are not met by academic marks.',
+  })
   @ApiWrappedOkResponse(SubmitApplicationResponseDto, 'Application submitted')
   submit(
     @CurrentUser() user: AuthUser,

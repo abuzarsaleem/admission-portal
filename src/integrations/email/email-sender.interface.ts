@@ -2,7 +2,6 @@ export interface VerificationEmailPayload {
   to: string;
   fullName: string;
   verificationLink: string;
-  applicantId: string;
   applicationId: string;
   applicationReference: string;
 }

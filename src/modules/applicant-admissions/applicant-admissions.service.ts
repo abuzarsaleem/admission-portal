@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { MoreThanOrEqual, Repository } from 'typeorm';
 import type { RequestContext } from '../../common/decorators/request-context.decorator.js';
 import { FeeStatus } from '../../common/enums/fee-status.enum.js';
+import { DeclarationStatus } from '../../common/enums/declaration-status.enum.js';
 import { IntakeStatus } from '../../common/enums/intake-status.enum.js';
 import { OfferingStatus } from '../../common/enums/offering-status.enum.js';
 import { BusinessException } from '../../common/exceptions/business.exception.js';
@@ -15,11 +16,13 @@ import { AdmissionCriterionEntity } from '../../database/entities/admission-crit
 import { GeneralCriterionEntity } from '../../database/entities/general-criterion.entity.js';
 import { GeneralFeeEntity } from '../../database/entities/general-fee.entity.js';
 import { IntakeEntity } from '../../database/entities/intake.entity.js';
+import { OfferingDeclarationEntity } from '../../database/entities/offering-declaration.entity.js';
 import { OfferingFeeEntity } from '../../database/entities/offering-fee.entity.js';
 import { ProgrammeOfferingEntity } from '../../database/entities/programme-offering.entity.js';
 import { ProgrammeEntity } from '../../database/entities/programme.entity.js';
 import type {
   ApplicantCriterionDto,
+  ApplicantDeclarationDto,
   ApplicantFeeDto,
   ApplicantIntakeDto,
   ApplicantIntakeListDto,
@@ -46,6 +49,8 @@ export class ApplicantAdmissionsService {
     private readonly offeringFeesRepo: Repository<OfferingFeeEntity>,
     @InjectRepository(GeneralFeeEntity)
     private readonly generalFeesRepo: Repository<GeneralFeeEntity>,
+    @InjectRepository(OfferingDeclarationEntity)
+    private readonly offeringDeclarationsRepo: Repository<OfferingDeclarationEntity>,
   ) {}
 
   async listIntakes(
@@ -162,6 +167,13 @@ export class ApplicantAdmissionsService {
         criteriaRequirement: general.criteriaRequirement,
         criteriaOperator: general.criteriaOperator,
         criteriaUnit: general.criteriaUnit,
+        criteriaValue:
+          general.criteriaValue != null ? Number(general.criteriaValue) : null,
+        criteriaValueMax:
+          general.criteriaValueMax != null
+            ? Number(general.criteriaValueMax)
+            : null,
+        appliesToDegreeType: general.appliesToDegreeType,
         mandatory: general.mandatory,
         sequenceNo: criterion.sequenceNo,
       });
@@ -206,6 +218,37 @@ export class ApplicantAdmissionsService {
       });
     }
     return result;
+  }
+
+  async getDeclarations(
+    ctx: RequestContext,
+    offeringId: string,
+  ): Promise<ApplicantDeclarationDto[]> {
+    await this.findVisibleOffering(ctx.tenantId, offeringId);
+    const now = new Date();
+
+    const rows = await this.offeringDeclarationsRepo.find({
+      where: {
+        tenantId: ctx.tenantId,
+        programmeOfferingId: offeringId,
+        status: DeclarationStatus.ACTIVE,
+      },
+      order: { createdAt: 'ASC' },
+    });
+
+    return rows
+      .filter((row) =>
+        this.isCurrentlyEffective(row.effectiveFrom, row.effectiveTo, now),
+      )
+      .map((row) => ({
+        id: String(row.id),
+        programmeOfferingId: String(row.programmeOfferingId),
+        declarationTypeId: String(row.declarationTypeId),
+        declarationText: row.declarationText,
+        version: row.version,
+        effectiveFrom: row.effectiveFrom.toISOString(),
+        effectiveTo: row.effectiveTo ? row.effectiveTo.toISOString() : null,
+      }));
   }
 
   async startApplication(

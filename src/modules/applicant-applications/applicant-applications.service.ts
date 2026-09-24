@@ -1,10 +1,5 @@
-import {
-  ForbiddenException,
-  HttpStatus,
-  Inject,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { ForbiddenException, HttpStatus, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 import type { AuthUser } from '../../common/decorators/current-user.decorator.js';
@@ -15,8 +10,11 @@ import {
   ApplicationContactType,
 } from '../../common/enums/application-completion.enum.js';
 import { ApplicationStatus } from '../../common/enums/application-status.enum.js';
+import { CriteriaOperator } from '../../common/enums/criteria-operator.enum.js';
+import { DeclarationStatus } from '../../common/enums/declaration-status.enum.js';
 import { OfferingStatus } from '../../common/enums/offering-status.enum.js';
 import { BusinessException } from '../../common/exceptions/business.exception.js';
+import { AdmissionCriterionEntity } from '../../database/entities/admission-criterion.entity.js';
 import { ApplicationAcademicDocumentEntity } from '../../database/entities/application-academic-document.entity.js';
 import { ApplicationAcademicInformationEntity } from '../../database/entities/application-academic-information.entity.js';
 import { ApplicationAddressEntity } from '../../database/entities/application-address.entity.js';
@@ -25,6 +23,8 @@ import { ApplicationDeclarationEntity } from '../../database/entities/applicatio
 import { ApplicationProgrammeOptionEntity } from '../../database/entities/application-programme-options.entity.js';
 import { ApplicationProgrammeSelectionEntity } from '../../database/entities/application-programme-selection.entity.js';
 import { ApplicationEntity } from '../../database/entities/application.entity.js';
+import { GeneralCriterionEntity } from '../../database/entities/general-criterion.entity.js';
+import { OfferingDeclarationEntity } from '../../database/entities/offering-declaration.entity.js';
 import { ProgrammeOfferingEntity } from '../../database/entities/programme-offering.entity.js';
 import {
   OBJECT_STORAGE,
@@ -45,6 +45,7 @@ import type {
   CreateProgrammeDto,
   CreateProfileDto,
   DeclarationStepResponseDto,
+  OfferingDeclarationForApplicantDto,
   ProgrammeStepResponseDto,
   ProfileFieldsDto,
   ProfilePhotographResponseDto,
@@ -114,11 +115,25 @@ export class ApplicantApplicationsService {
     private readonly declarationsRepo: Repository<ApplicationDeclarationEntity>,
     @InjectRepository(ProgrammeOfferingEntity)
     private readonly offeringsRepo: Repository<ProgrammeOfferingEntity>,
+    @InjectRepository(OfferingDeclarationEntity)
+    private readonly offeringDeclarationsRepo: Repository<OfferingDeclarationEntity>,
+    @InjectRepository(AdmissionCriterionEntity)
+    private readonly admissionCriteriaRepo: Repository<AdmissionCriterionEntity>,
+    @InjectRepository(GeneralCriterionEntity)
+    private readonly generalCriteriaRepo: Repository<GeneralCriterionEntity>,
     @Inject(OBJECT_STORAGE)
     private readonly objectStorage: ObjectStorage,
     private readonly dataSource: DataSource,
+    private readonly config: ConfigService,
   ) {}
 
+  private maxProgrammePreferences(): number {
+    const raw = Number(
+      this.config.get<string>('APPLICATION_MAX_PROGRAMME_PREFERENCES') ?? '2',
+    );
+    if (!Number.isFinite(raw) || raw < 2) return 2;
+    return Math.min(Math.trunc(raw), 20);
+  }
   /* ── Academic ──────────────────────────────────────────────────── */
 
   async getAcademic(
@@ -135,7 +150,9 @@ export class ApplicantApplicationsService {
       applicantId,
       academicStepSaved: app.academicStepSaved,
       overallCompletion: app.overallCompletion,
-      records: records.map((r) => this.toAcademicRecord(r)),
+      records: await Promise.all(
+        records.map((r) => this.toAcademicRecord(r)),
+      ),
     };
   }
 
@@ -171,6 +188,13 @@ export class ApplicantApplicationsService {
         }),
       });
     });
+
+    if (app.programmeStepSaved) {
+      await this.assertEligibilityMet(
+        { ...app, academicStepSaved: true },
+        applicantId,
+      );
+    }
 
     return this.getAcademic(user, applicantId);
   }
@@ -226,6 +250,13 @@ export class ApplicantApplicationsService {
         }),
       });
     });
+
+    if (app.programmeStepSaved) {
+      await this.assertEligibilityMet(
+        { ...app, academicStepSaved: true },
+        applicantId,
+      );
+    }
 
     return this.getAcademic(user, applicantId);
   }
@@ -306,7 +337,27 @@ export class ApplicantApplicationsService {
         verificationStatus: AcademicDocumentVerificationStatus.UNVERIFIED,
       }),
     );
-    return this.toAcademicDocument(saved);
+    return this.toAcademicDocument(saved, stored.downloadUrl);
+  }
+
+  async getAcademicDocument(
+    user: AuthUser,
+    applicantId: string,
+    academicInformationId: string,
+    documentId: string,
+  ): Promise<AcademicDocumentResponseDto> {
+    await this.requireOwnedEditable(user, applicantId, false);
+    const doc = await this.academicDocsRepo.findOne({
+      where: {
+        id: documentId,
+        applicantId,
+        academicInformationId,
+      },
+    });
+    if (!doc) {
+      throw new NotFoundException('Academic document not found');
+    }
+    return this.toAcademicDocument(doc);
   }
 
   async deleteAcademicDocument(
@@ -600,6 +651,9 @@ export class ApplicantApplicationsService {
       mobileNumber: app.mobileNumber,
       telephone: app.telephone,
       profilePhotograph: app.profilePhotograph,
+      profilePhotographDownloadUrl: app.profilePhotograph
+        ? await this.objectStorage.resolveDownloadUrl(app.profilePhotograph)
+        : null,
       primaryNationalityId: app.primaryNationalityId,
       secondaryNationalityId: app.secondaryNationalityId,
       domicileId: app.domicileId,
@@ -625,43 +679,12 @@ export class ApplicantApplicationsService {
         'PROFILE_ALREADY_EXISTS',
       );
     }
-    this.assertAddressTypesUnique(dto.addresses);
-    if (
-      !dto.addresses.some((a) => a.addressType === ApplicationAddressType.PRIMARY)
-    ) {
-      throw new BusinessException(
-        'PRIMARY address is required',
-        HttpStatus.UNPROCESSABLE_ENTITY,
-        'PRIMARY_ADDRESS_REQUIRED',
-      );
-    }
-    this.assertEmergencyRules(dto.contacts);
-    this.assertHasEmergency(dto.contacts);
+    await this.assertProfilePrerequisites(app.tenantId, applicantId);
 
-    await this.dataSource.transaction(async (manager) => {
-      await manager.getRepository(ApplicationEntity).update(
-        applicantId,
-        this.mapProfileFields(dto, app),
-      );
-      await manager.getRepository(ApplicationAddressEntity).save(
-        dto.addresses.map((a) =>
-          manager.getRepository(ApplicationAddressEntity).create({
-            tenantId: app.tenantId,
-            applicantId,
-            ...this.mapAddressFields(a),
-          }),
-        ),
-      );
-      await manager.getRepository(ApplicationContactEntity).save(
-        dto.contacts.map((c) =>
-          manager.getRepository(ApplicationContactEntity).create({
-            tenantId: app.tenantId,
-            applicantId,
-            ...this.mapContactFields(c),
-          }),
-        ),
-      );
-    });
+    await this.applicationsRepo.update(
+      applicantId,
+      this.mapProfileFields(dto, app),
+    );
 
     return this.getProfile(user, applicantId);
   }
@@ -679,29 +702,37 @@ export class ApplicantApplicationsService {
         'PROFILE_NOT_FOUND',
       );
     }
-    this.assertAddressTypesUnique(dto.addresses);
-    this.assertEmergencyRules(dto.contacts);
+    await this.assertProfilePrerequisites(app.tenantId, applicantId);
 
-    await this.dataSource.transaction(async (manager) => {
-      await manager.getRepository(ApplicationEntity).update(
-        applicantId,
-        this.mapProfileFields(dto, app),
-      );
-      await this.applyAddressUpdates(
-        app.tenantId,
-        applicantId,
-        dto.addresses,
-        manager.getRepository(ApplicationAddressEntity),
-      );
-      await this.applyContactUpdates(
-        app.tenantId,
-        applicantId,
-        dto.contacts,
-        manager.getRepository(ApplicationContactEntity),
-      );
-    });
+    await this.applicationsRepo.update(
+      applicantId,
+      this.mapProfileFields(dto, app),
+    );
 
     return this.getProfile(user, applicantId);
+  }
+
+  private async assertProfilePrerequisites(
+    tenantId: string,
+    applicantId: string,
+  ): Promise<void> {
+    const addresses = await this.addressesRepo.find({
+      where: { applicantId, tenantId },
+    });
+    if (
+      !addresses.some((a) => a.addressType === ApplicationAddressType.PRIMARY)
+    ) {
+      throw new BusinessException(
+        'PRIMARY address must be saved via /addresses before profile step',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        'PRIMARY_ADDRESS_REQUIRED',
+      );
+    }
+    const contacts = await this.contactsRepo.find({
+      where: { applicantId, tenantId },
+    });
+    this.assertHasEmergency(contacts);
+    this.assertEmergencyRules(contacts);
   }
 
   /* ── Declaration / Submit ──────────────────────────────────────── */
@@ -724,7 +755,7 @@ export class ApplicantApplicationsService {
   ): Promise<DeclarationStepResponseDto> {
     const app = await this.requireOwnedEditable(user, applicantId);
     this.assertPriorStepsComplete(app);
-    this.assertDeclarationPayload(dto);
+    await this.assertDeclarationPayload(app, applicantId, dto);
 
     const existing = await this.declarationsRepo.findOne({
       where: { applicantId },
@@ -748,7 +779,7 @@ export class ApplicantApplicationsService {
   ): Promise<DeclarationStepResponseDto> {
     const app = await this.requireOwnedEditable(user, applicantId);
     this.assertPriorStepsComplete(app);
-    this.assertDeclarationPayload(dto);
+    await this.assertDeclarationPayload(app, applicantId, dto);
 
     const existing = await this.declarationsRepo.findOne({
       where: { applicantId },
@@ -807,13 +838,18 @@ export class ApplicantApplicationsService {
         'DISCIPLINARY_DETAILS_REQUIRED',
       );
     }
-    if (!declaration.selectedTestCentreId?.trim()) {
+    if (
+      !declaration.declarationAccepted ||
+      !declaration.acceptedOfferingDeclarationIds?.length
+    ) {
       throw new BusinessException(
-        'Test centre selection is required',
+        'Offering declarations must be accepted before submission',
         HttpStatus.UNPROCESSABLE_ENTITY,
-        'TEST_CENTRE_REQUIRED',
+        'DECLARATION_NOT_ACCEPTED',
       );
     }
+
+    await this.assertEligibilityMet(app, applicantId);
 
     if (
       app.applicationStatus === ApplicationStatus.COMPLETE ||
@@ -883,6 +919,10 @@ export class ApplicantApplicationsService {
       }
     }
 
+    if (app.academicStepSaved) {
+      await this.assertEligibilityMet(app, applicantId, offeringIds);
+    }
+
     const now = new Date();
     await this.dataSource.transaction(async (manager) => {
       const selectionRepo = manager.getRepository(
@@ -943,6 +983,15 @@ export class ApplicantApplicationsService {
     existing?: ApplicationDeclarationEntity,
   ): Promise<void> {
     const now = new Date();
+    const required = await this.loadActiveOfferingDeclarations(
+      app.tenantId,
+      applicantId,
+    );
+    const versionLabel = required
+      .filter((r) => dto.acceptedOfferingDeclarationIds.includes(r.id))
+      .map((r) => r.version)
+      .join(',');
+
     const row =
       existing ??
       this.declarationsRepo.create({
@@ -951,12 +1000,12 @@ export class ApplicantApplicationsService {
       });
     row.declarationAccepted = dto.declarationAccepted;
     row.declarationAcceptanceDate = dto.declarationAccepted ? now : null;
-    row.declarationVersion = dto.declarationVersion ?? null;
+    row.declarationVersion = versionLabel || null;
+    row.acceptedOfferingDeclarationIds = dto.acceptedOfferingDeclarationIds;
     row.disciplinaryIssueDeclared = dto.disciplinaryIssueDeclared;
     row.disciplinaryIssueDetails = dto.disciplinaryIssueDeclared
       ? (dto.disciplinaryIssueDetails ?? null)
       : null;
-    row.selectedTestCentreId = dto.selectedTestCentreId;
     await this.declarationsRepo.save(row);
 
     await this.applicationsRepo.update(applicantId, {
@@ -967,6 +1016,46 @@ export class ApplicantApplicationsService {
         declarationStepSaved: true,
       }),
     });
+  }
+
+  async listOfferingDeclarationsForApplicant(
+    user: AuthUser,
+    applicantId: string,
+  ): Promise<OfferingDeclarationForApplicantDto[]> {
+    const app = await this.requireOwnedEditable(user, applicantId, false);
+    return this.loadActiveOfferingDeclarations(app.tenantId, applicantId);
+  }
+
+  private async loadActiveOfferingDeclarations(
+    tenantId: string,
+    applicantId: string,
+  ): Promise<OfferingDeclarationForApplicantDto[]> {
+    const options = await this.programmeOptionsRepo.find({
+      where: { applicantId, tenantId },
+    });
+    if (options.length === 0) {
+      throw new BusinessException(
+        'Programme selection is required before loading declaration texts',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        'PROGRAMME_STEP_INCOMPLETE',
+      );
+    }
+    const offeringIds = options.map((o) => o.programmeOfferingId);
+    const rows = await this.offeringDeclarationsRepo.find({
+      where: {
+        tenantId,
+        programmeOfferingId: In(offeringIds),
+        status: DeclarationStatus.ACTIVE,
+      },
+      order: { createdAt: 'ASC' },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      programmeOfferingId: r.programmeOfferingId,
+      declarationTypeId: r.declarationTypeId,
+      declarationText: r.declarationText,
+      version: r.version,
+    }));
   }
 
   private async requireOwnedEditable(
@@ -1049,12 +1138,27 @@ export class ApplicantApplicationsService {
   }
 
   private assertProgrammeOptions(dto: CreateProgrammeDto): void {
+    const max = this.maxProgrammePreferences();
+    if (dto.options.length > max) {
+      throw new BusinessException(
+        `At most ${max} programme preferences are allowed`,
+        HttpStatus.BAD_REQUEST,
+        'TOO_MANY_PREFERENCES',
+      );
+    }
     const orders = dto.options.map((o) => o.preferenceOrder);
     if (!orders.includes(1)) {
       throw new BusinessException(
         'Preference order 1 is mandatory',
         HttpStatus.BAD_REQUEST,
         'PREFERENCE_1_REQUIRED',
+      );
+    }
+    if (orders.some((o) => o > max)) {
+      throw new BusinessException(
+        `preferenceOrder must be between 1 and ${max}`,
+        HttpStatus.BAD_REQUEST,
+        'INVALID_PREFERENCE_ORDER',
       );
     }
     if (new Set(orders).size !== orders.length) {
@@ -1127,7 +1231,11 @@ export class ApplicantApplicationsService {
     }
   }
 
-  private assertDeclarationPayload(dto: CreateDeclarationDto): void {
+  private async assertDeclarationPayload(
+    app: ApplicationEntity,
+    applicantId: string,
+    dto: CreateDeclarationDto,
+  ): Promise<void> {
     if (!dto.declarationAccepted) {
       throw new BusinessException(
         'Declaration must be accepted',
@@ -1144,6 +1252,249 @@ export class ApplicantApplicationsService {
         HttpStatus.UNPROCESSABLE_ENTITY,
         'DISCIPLINARY_DETAILS_REQUIRED',
       );
+    }
+    const required = await this.loadActiveOfferingDeclarations(
+      app.tenantId,
+      applicantId,
+    );
+    if (required.length === 0) {
+      throw new BusinessException(
+        'No ACTIVE offering declarations found for selected programmes',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        'OFFERING_DECLARATIONS_MISSING',
+      );
+    }
+    const requiredIds = new Set(required.map((r) => r.id));
+    const accepted = new Set(dto.acceptedOfferingDeclarationIds);
+    for (const id of requiredIds) {
+      if (!accepted.has(id)) {
+        throw new BusinessException(
+          'All ACTIVE offering declarations for selected programmes must be accepted',
+          HttpStatus.UNPROCESSABLE_ENTITY,
+          'OFFERING_DECLARATIONS_INCOMPLETE',
+        );
+      }
+    }
+    for (const id of accepted) {
+      if (!requiredIds.has(id)) {
+        throw new BusinessException(
+          `Offering declaration ${id} is not valid for this application`,
+          HttpStatus.UNPROCESSABLE_ENTITY,
+          'INVALID_OFFERING_DECLARATION',
+        );
+      }
+    }
+  }
+
+  /**
+   * Enforces machine-evaluable mandatory offering criteria (criteria_value set)
+   * against applicant academic percentages. Display-only criteria (no value) are skipped.
+   */
+  private async assertEligibilityMet(
+    app: ApplicationEntity,
+    applicantId: string,
+    offeringIdsOverride?: string[],
+  ): Promise<void> {
+    let offeringIds = offeringIdsOverride;
+    if (!offeringIds) {
+      const options = await this.programmeOptionsRepo.find({
+        where: { applicantId, tenantId: app.tenantId },
+      });
+      offeringIds = options.map((o) => o.programmeOfferingId);
+    }
+    if (!offeringIds.length) return;
+
+    const now = new Date();
+    const links = await this.admissionCriteriaRepo.find({
+      where: {
+        tenantId: app.tenantId,
+        programmeOfferingId: In(offeringIds),
+      },
+      order: { sequenceNo: 'ASC', createdAt: 'ASC' },
+    });
+    if (!links.length) return;
+
+    const generalIds = [...new Set(links.map((l) => l.generalCriteriaId))];
+    const generals = await this.generalCriteriaRepo.find({
+      where: { id: In(generalIds), tenantId: app.tenantId },
+    });
+    const generalById = new Map(generals.map((g) => [g.id, g]));
+
+    const academics = await this.academicInfoRepo.find({
+      where: { applicantId, tenantId: app.tenantId },
+    });
+
+    type Failure = {
+      admissionCriteriaId: string;
+      programmeOfferingId: string;
+      generalCriteriaId: string;
+      criteriaName: string | null;
+      criteriaRequirement: string;
+      appliesToDegreeType: string | null;
+      requiredValue: number | null;
+      requiredValueMax: number | null;
+      operator: string | null;
+      actualPercentage: number | null;
+      reason: string;
+    };
+
+    const failures: Failure[] = [];
+
+    for (const link of links) {
+      if (
+        link.effectiveFrom &&
+        link.effectiveFrom.getTime() > now.getTime()
+      ) {
+        continue;
+      }
+      if (link.effectiveTo && link.effectiveTo.getTime() < now.getTime()) {
+        continue;
+      }
+
+      const general = generalById.get(link.generalCriteriaId);
+      if (!general || !general.mandatory) continue;
+
+      const hasNumeric =
+        general.criteriaValue != null &&
+        general.criteriaValue !== '' &&
+        !Number.isNaN(Number(general.criteriaValue));
+      const isRequiredPresence =
+        general.criteriaOperator === CriteriaOperator.REQUIRED &&
+        !!general.appliesToDegreeType;
+
+      if (!hasNumeric && !isRequiredPresence) continue;
+
+      const degreeFilter = general.appliesToDegreeType?.trim().toLowerCase();
+      const matchingAcademics = degreeFilter
+        ? academics.filter(
+            (a) => a.degreeType?.trim().toLowerCase() === degreeFilter,
+          )
+        : academics;
+
+      if (isRequiredPresence) {
+        if (matchingAcademics.length === 0) {
+          failures.push({
+            admissionCriteriaId: link.id,
+            programmeOfferingId: link.programmeOfferingId,
+            generalCriteriaId: general.id,
+            criteriaName: general.criteriaName,
+            criteriaRequirement: general.criteriaRequirement,
+            appliesToDegreeType: general.appliesToDegreeType,
+            requiredValue: null,
+            requiredValueMax: null,
+            operator: general.criteriaOperator,
+            actualPercentage: null,
+            reason: `Missing academic record for degree type ${general.appliesToDegreeType}`,
+          });
+        }
+        continue;
+      }
+
+      const required = Number(general.criteriaValue);
+      const requiredMax =
+        general.criteriaValueMax != null
+          ? Number(general.criteriaValueMax)
+          : null;
+      const operator =
+        (general.criteriaOperator as CriteriaOperator | null) ??
+        CriteriaOperator.GREATER_THAN_OR_EQUAL;
+
+      if (matchingAcademics.length === 0) {
+        failures.push({
+          admissionCriteriaId: link.id,
+          programmeOfferingId: link.programmeOfferingId,
+          generalCriteriaId: general.id,
+          criteriaName: general.criteriaName,
+          criteriaRequirement: general.criteriaRequirement,
+          appliesToDegreeType: general.appliesToDegreeType,
+          requiredValue: required,
+          requiredValueMax: requiredMax,
+          operator,
+          actualPercentage: null,
+          reason: degreeFilter
+            ? `No academic record found for degree type ${general.appliesToDegreeType}`
+            : 'No academic records found to evaluate percentage',
+        });
+        continue;
+      }
+
+      const percentages = matchingAcademics
+        .map((a) => Number(a.percentage))
+        .filter((n) => Number.isFinite(n));
+      if (!percentages.length) {
+        failures.push({
+          admissionCriteriaId: link.id,
+          programmeOfferingId: link.programmeOfferingId,
+          generalCriteriaId: general.id,
+          criteriaName: general.criteriaName,
+          criteriaRequirement: general.criteriaRequirement,
+          appliesToDegreeType: general.appliesToDegreeType,
+          requiredValue: required,
+          requiredValueMax: requiredMax,
+          operator,
+          actualPercentage: null,
+          reason: 'Academic percentage is missing or invalid',
+        });
+        continue;
+      }
+
+      const actual = Math.max(...percentages);
+      const passed = this.comparePercentage(
+        actual,
+        operator,
+        required,
+        requiredMax,
+      );
+      if (!passed) {
+        failures.push({
+          admissionCriteriaId: link.id,
+          programmeOfferingId: link.programmeOfferingId,
+          generalCriteriaId: general.id,
+          criteriaName: general.criteriaName,
+          criteriaRequirement: general.criteriaRequirement,
+          appliesToDegreeType: general.appliesToDegreeType,
+          requiredValue: required,
+          requiredValueMax: requiredMax,
+          operator,
+          actualPercentage: actual,
+          reason: `Obtained ${actual}% does not meet required ${operator} ${required}${
+            requiredMax != null ? `–${requiredMax}` : ''
+          }%`,
+        });
+      }
+    }
+
+    if (failures.length > 0) {
+      throw new BusinessException(
+        'Applicant does not meet one or more mandatory admission criteria',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        'ELIGIBILITY_CRITERIA_NOT_MET',
+        { failures },
+      );
+    }
+  }
+
+  private comparePercentage(
+    actual: number,
+    operator: CriteriaOperator | string,
+    required: number,
+    requiredMax: number | null,
+  ): boolean {
+    switch (operator) {
+      case CriteriaOperator.EQUALS:
+        return actual === required;
+      case CriteriaOperator.GREATER_THAN:
+        return actual > required;
+      case CriteriaOperator.GREATER_THAN_OR_EQUAL:
+        return actual >= required;
+      case CriteriaOperator.LESS_THAN:
+        return actual < required;
+      case CriteriaOperator.BETWEEN:
+        return (
+          requiredMax != null && actual >= required && actual <= requiredMax
+        );
+      default:
+        return actual >= required;
     }
   }
 
@@ -1263,6 +1614,7 @@ export class ApplicantApplicationsService {
 
   private mapAcademicFields(record: {
     degreeType: string;
+    rollNumber: string;
     qualificationName: string;
     boardOrInstitution: string;
     passingYear: string;
@@ -1274,6 +1626,7 @@ export class ApplicantApplicationsService {
   }) {
     return {
       degreeType: record.degreeType,
+      rollNumber: record.rollNumber,
       qualificationName: record.qualificationName,
       boardOrInstitution: record.boardOrInstitution,
       passingYear: record.passingYear,
@@ -1285,12 +1638,13 @@ export class ApplicantApplicationsService {
     };
   }
 
-  private toAcademicRecord(
+  private async toAcademicRecord(
     row: ApplicationAcademicInformationEntity,
-  ): AcademicRecordResponseDto {
+  ): Promise<AcademicRecordResponseDto> {
     return {
       id: row.id,
       degreeType: row.degreeType,
+      rollNumber: row.rollNumber,
       qualificationName: row.qualificationName,
       boardOrInstitution: row.boardOrInstitution,
       passingYear: row.passingYear,
@@ -1299,20 +1653,26 @@ export class ApplicantApplicationsService {
       marksOrGpaObtained: row.marksOrGpaObtained,
       marksOrGpaTotal: row.marksOrGpaTotal,
       percentage: Number(row.percentage),
-      documents: (row.documents ?? []).map((d) => this.toAcademicDocument(d)),
+      documents: await Promise.all(
+        (row.documents ?? []).map((d) => this.toAcademicDocument(d)),
+      ),
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
   }
 
-  private toAcademicDocument(
+  private async toAcademicDocument(
     row: ApplicationAcademicDocumentEntity,
-  ): AcademicDocumentResponseDto {
+    downloadUrl?: string,
+  ): Promise<AcademicDocumentResponseDto> {
     return {
       id: row.id,
       academicInformationId: row.academicInformationId,
       documentType: row.documentType,
       fileReference: row.fileReference,
+      downloadUrl:
+        downloadUrl ??
+        (await this.objectStorage.resolveDownloadUrl(row.fileReference)),
       originalFileName: row.originalFileName,
       mimeType: row.mimeType,
       fileSize: row.fileSize,
@@ -1363,9 +1723,10 @@ export class ApplicantApplicationsService {
       declarationAccepted: row?.declarationAccepted ?? false,
       declarationAcceptanceDate: row?.declarationAcceptanceDate ?? null,
       declarationVersion: row?.declarationVersion ?? null,
+      acceptedOfferingDeclarationIds:
+        row?.acceptedOfferingDeclarationIds ?? [],
       disciplinaryIssueDeclared: row?.disciplinaryIssueDeclared ?? false,
       disciplinaryIssueDetails: row?.disciplinaryIssueDetails ?? null,
-      selectedTestCentreId: row?.selectedTestCentreId ?? null,
       submissionDate: row?.submissionDate ?? app.submissionDate,
       declarationStepSaved: app.declarationStepSaved,
       overallCompletion: app.overallCompletion,

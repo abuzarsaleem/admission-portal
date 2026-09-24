@@ -43,8 +43,19 @@ export class GeneralCriteriaService {
       criteriaRequirement: dto.criteriaRequirement,
       criteriaOperator: dto.criteriaOperator ?? null,
       criteriaUnit: dto.criteriaUnit ?? null,
+      criteriaValue:
+        dto.criteriaValue === undefined || dto.criteriaValue === null
+          ? null
+          : String(dto.criteriaValue),
+      criteriaValueMax:
+        dto.criteriaValueMax === undefined || dto.criteriaValueMax === null
+          ? null
+          : String(dto.criteriaValueMax),
+      appliesToDegreeType: dto.appliesToDegreeType ?? null,
       mandatory: dto.mandatory ?? true,
     });
+
+    this.assertStructuredValues(entity);
 
     return this.toResponse(await this.generalCriteriaRepo.save(entity));
   }
@@ -107,7 +118,20 @@ export class GeneralCriteriaService {
       entity.criteriaOperator = dto.criteriaOperator;
     }
     if (dto.criteriaUnit !== undefined) entity.criteriaUnit = dto.criteriaUnit;
+    if (dto.criteriaValue !== undefined) {
+      entity.criteriaValue =
+        dto.criteriaValue === null ? null : String(dto.criteriaValue);
+    }
+    if (dto.criteriaValueMax !== undefined) {
+      entity.criteriaValueMax =
+        dto.criteriaValueMax === null ? null : String(dto.criteriaValueMax);
+    }
+    if (dto.appliesToDegreeType !== undefined) {
+      entity.appliesToDegreeType = dto.appliesToDegreeType;
+    }
     if (dto.mandatory !== undefined) entity.mandatory = dto.mandatory;
+
+    this.assertStructuredValues(entity);
 
     return this.toResponse(await this.generalCriteriaRepo.save(entity));
   }
@@ -163,6 +187,25 @@ export class GeneralCriteriaService {
     }
   }
 
+  private assertStructuredValues(entity: GeneralCriterionEntity): void {
+    const min = entity.criteriaValue != null ? Number(entity.criteriaValue) : null;
+    const max =
+      entity.criteriaValueMax != null ? Number(entity.criteriaValueMax) : null;
+    if (min != null && max != null && max < min) {
+      throw new ConflictException(
+        'criteriaValueMax must be greater than or equal to criteriaValue',
+      );
+    }
+    if (
+      entity.criteriaOperator === CriteriaOperator.BETWEEN &&
+      (min == null || max == null)
+    ) {
+      throw new ConflictException(
+        'criteriaValue and criteriaValueMax are required when criteriaOperator is BETWEEN',
+      );
+    }
+  }
+
   private toResponse(
     entity: GeneralCriterionEntity,
   ): GeneralCriterionResponseDto {
@@ -175,6 +218,13 @@ export class GeneralCriteriaService {
       criteriaOperator:
         (entity.criteriaOperator as CriteriaOperator | null) ?? null,
       criteriaUnit: entity.criteriaUnit,
+      criteriaValue:
+        entity.criteriaValue != null ? Number(entity.criteriaValue) : null,
+      criteriaValueMax:
+        entity.criteriaValueMax != null
+          ? Number(entity.criteriaValueMax)
+          : null,
+      appliesToDegreeType: entity.appliesToDegreeType,
       mandatory: entity.mandatory,
     };
   }

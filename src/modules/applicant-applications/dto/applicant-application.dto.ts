@@ -1,7 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
-  ArrayMaxSize,
   ArrayMinSize,
   IsArray,
   IsBoolean,
@@ -31,6 +30,15 @@ import {
 const trimString = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
 
+/** Treat empty / Swagger placeholder "string" as omitted optional fields. */
+const emptyToUndefined = ({ value }: { value: unknown }) => {
+  if (value === null || value === undefined) return undefined;
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.toLowerCase() === 'string') return undefined;
+  return trimmed;
+};
+
 /* ── Academic ─────────────────────────────────────────────────────── */
 
 export class AcademicRecordFieldsDto {
@@ -40,6 +48,13 @@ export class AcademicRecordFieldsDto {
   @IsNotEmpty()
   @MaxLength(80)
   degreeType!: string;
+
+  @ApiProperty({ example: 'BISE-LHR-2025-001234', description: 'Board/institution roll number' })
+  @Transform(trimString)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(80)
+  rollNumber!: string;
 
   @ApiProperty({ example: 'FSC Pre-Engineering' })
   @Transform(trimString)
@@ -151,8 +166,15 @@ export class AcademicDocumentResponseDto {
   @ApiProperty({ enum: AcademicDocumentType })
   documentType!: AcademicDocumentType;
 
-  @ApiProperty()
+  @ApiProperty({
+    description: 'Durable storage URL (private bucket — do not open directly)',
+  })
   fileReference!: string;
+
+  @ApiProperty({
+    description: 'Signed URL for browser access (expires; use this to view/download)',
+  })
+  downloadUrl!: string;
 
   @ApiPropertyOptional({ nullable: true })
   originalFileName!: string | null;
@@ -176,6 +198,9 @@ export class AcademicRecordResponseDto {
 
   @ApiProperty()
   degreeType!: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  rollNumber!: string | null;
 
   @ApiProperty()
   qualificationName!: string;
@@ -232,11 +257,15 @@ export class ProgrammeOptionDto {
   @IsUUID('4')
   programmeOfferingId!: string;
 
-  @ApiProperty({ description: '1 = mandatory preference, 2 = optional', example: 1 })
+  @ApiProperty({
+    description:
+      'Preference order starting at 1 (max from APPLICATION_MAX_PROGRAMME_PREFERENCES)',
+    example: 1,
+  })
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(2)
+  @Max(20)
   preferenceOrder!: number;
 }
 
@@ -245,10 +274,13 @@ export class CreateProgrammeDto {
   @IsEnum(QualificationLevel)
   qualificationLevel!: QualificationLevel;
 
-  @ApiProperty({ type: [ProgrammeOptionDto] })
+  @ApiProperty({
+    type: [ProgrammeOptionDto],
+    description:
+      'Preference 1 is mandatory. Additional preferences allowed up to APPLICATION_MAX_PROGRAMME_PREFERENCES (default 2).',
+  })
   @IsArray()
   @ArrayMinSize(1)
-  @ArrayMaxSize(2)
   @ValidateNested({ each: true })
   @Type(() => ProgrammeOptionDto)
   options!: ProgrammeOptionDto[];
@@ -406,8 +438,28 @@ export class ApplicationAddressResponseDto {
 
 /* ── Contacts ─────────────────────────────────────────────────────── */
 
+/** Swagger / docs example — includes required EMERGENCY contact. */
+export const CONTACTS_REQUEST_EXAMPLE = {
+  contacts: [
+    {
+      contactType: 'PARENT',
+      name: 'Muhammad Aslam',
+      identityDocumentNumber: '35202-7654321-1',
+      relationship: 'FATHER',
+      occupation: 'Business',
+      mobileNumber: '+923007654321',
+    },
+    {
+      contactType: 'EMERGENCY',
+      name: 'Ali Khan',
+      relationship: 'BROTHER',
+      mobileNumber: '+923001112233',
+    },
+  ],
+};
+
 export class ContactFieldsDto {
-  @ApiProperty({ enum: ApplicationContactType })
+  @ApiProperty({ enum: ApplicationContactType, example: 'PARENT' })
   @IsEnum(ApplicationContactType)
   contactType!: ApplicationContactType;
 
@@ -446,30 +498,34 @@ export class ContactFieldsDto {
   @MaxLength(30)
   mobileNumber!: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: '042-1234567' })
   @IsOptional()
-  @Transform(trimString)
+  @Transform(emptyToUndefined)
   @IsString()
   @MaxLength(30)
   telephone?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: 'aslam.ahmed@example.com' })
   @IsOptional()
-  @Transform(trimString)
+  @Transform(emptyToUndefined)
+  @ValidateIf((_, v) => v !== undefined && v !== null && v !== '')
   @IsEmail()
   @MaxLength(255)
   email?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: 'House 25, Street 12, Johar Town, Lahore' })
   @IsOptional()
-  @Transform(trimString)
+  @Transform(emptyToUndefined)
   @IsString()
   @MaxLength(500)
   addressLine?: string;
 }
 
 export class CreateContactsDto {
-  @ApiProperty({ type: [ContactFieldsDto] })
+  @ApiProperty({
+    type: [ContactFieldsDto],
+    example: CONTACTS_REQUEST_EXAMPLE.contacts,
+  })
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })
@@ -607,37 +663,9 @@ export class ProfileFieldsDto {
   referralSource?: string;
 }
 
-export class CreateProfileDto extends ProfileFieldsDto {
-  @ApiProperty({ type: [AddressFieldsDto] })
-  @IsArray()
-  @ArrayMinSize(1)
-  @ValidateNested({ each: true })
-  @Type(() => AddressFieldsDto)
-  addresses!: AddressFieldsDto[];
+export class CreateProfileDto extends ProfileFieldsDto {}
 
-  @ApiProperty({ type: [ContactFieldsDto] })
-  @IsArray()
-  @ArrayMinSize(1)
-  @ValidateNested({ each: true })
-  @Type(() => ContactFieldsDto)
-  contacts!: ContactFieldsDto[];
-}
-
-export class UpdateProfileDto extends ProfileFieldsDto {
-  @ApiProperty({ type: [UpdateAddressDto] })
-  @IsArray()
-  @ArrayMinSize(1)
-  @ValidateNested({ each: true })
-  @Type(() => UpdateAddressDto)
-  addresses!: UpdateAddressDto[];
-
-  @ApiProperty({ type: [UpdateContactDto] })
-  @IsArray()
-  @ArrayMinSize(1)
-  @ValidateNested({ each: true })
-  @Type(() => UpdateContactDto)
-  contacts!: UpdateContactDto[];
-}
+export class UpdateProfileDto extends ProfileFieldsDto {}
 
 export class ProfileStepResponseDto {
   @ApiProperty()
@@ -661,8 +689,18 @@ export class ProfileStepResponseDto {
   @ApiPropertyOptional({ nullable: true })
   telephone!: string | null;
 
-  @ApiPropertyOptional({ nullable: true })
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'Durable profile photo URL on applications.profile_photograph (linked via applicant id)',
+  })
   profilePhotograph!: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Signed URL for viewing the profile photograph',
+  })
+  profilePhotographDownloadUrl!: string | null;
 
   @ApiPropertyOptional({ nullable: true })
   primaryNationalityId!: string | null;
@@ -679,10 +717,16 @@ export class ProfileStepResponseDto {
   @ApiPropertyOptional({ nullable: true })
   referralSource!: string | null;
 
-  @ApiProperty({ type: [ApplicationAddressResponseDto] })
+  @ApiProperty({
+    type: [ApplicationAddressResponseDto],
+    description: 'Loaded from application_addresses (separate addresses APIs)',
+  })
   addresses!: ApplicationAddressResponseDto[];
 
-  @ApiProperty({ type: [ApplicationContactResponseDto] })
+  @ApiProperty({
+    type: [ApplicationContactResponseDto],
+    description: 'Loaded from application_contacts (separate contacts APIs)',
+  })
   contacts!: ApplicationContactResponseDto[];
 
   @ApiProperty()
@@ -694,17 +738,41 @@ export class ProfileStepResponseDto {
 
 /* ── Declaration / Submit ─────────────────────────────────────────── */
 
-export class CreateDeclarationDto {
+export class OfferingDeclarationForApplicantDto {
   @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  programmeOfferingId!: string;
+
+  @ApiProperty()
+  declarationTypeId!: string;
+
+  @ApiProperty()
+  declarationText!: string;
+
+  @ApiProperty()
+  version!: string;
+}
+
+export class CreateDeclarationDto {
+  @ApiProperty({
+    description:
+      'Must be true — applicant accepts the offering declaration text(s) listed by GET .../declaration/texts',
+  })
   @IsBoolean()
   declarationAccepted!: boolean;
 
-  @ApiPropertyOptional({ example: 'DECL-1.0' })
-  @IsOptional()
-  @Transform(trimString)
-  @IsString()
-  @MaxLength(50)
-  declarationVersion?: string;
+  @ApiProperty({
+    type: [String],
+    description:
+      'IDs of ACTIVE offering_declarations for the selected programme offerings that the applicant accepts',
+    example: ['cccccccc-cccc-4ccc-8ccc-ccccccccccc1'],
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsUUID('4', { each: true })
+  acceptedOfferingDeclarationIds!: string[];
 
   @ApiProperty()
   @IsBoolean()
@@ -716,13 +784,6 @@ export class CreateDeclarationDto {
   @IsString()
   @IsNotEmpty()
   disciplinaryIssueDetails?: string;
-
-  @ApiProperty({ example: 'TC-LHR-001' })
-  @Transform(trimString)
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(100)
-  selectedTestCentreId!: string;
 }
 
 export class UpdateDeclarationDto extends CreateDeclarationDto {}
@@ -740,14 +801,14 @@ export class DeclarationStepResponseDto {
   @ApiPropertyOptional({ nullable: true })
   declarationVersion!: string | null;
 
+  @ApiProperty({ type: [String] })
+  acceptedOfferingDeclarationIds!: string[];
+
   @ApiProperty()
   disciplinaryIssueDeclared!: boolean;
 
   @ApiPropertyOptional({ nullable: true })
   disciplinaryIssueDetails!: string | null;
-
-  @ApiPropertyOptional({ nullable: true })
-  selectedTestCentreId!: string | null;
 
   @ApiPropertyOptional({ nullable: true })
   submissionDate!: Date | null;

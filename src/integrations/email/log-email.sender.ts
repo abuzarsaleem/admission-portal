@@ -15,7 +15,7 @@ export class LogEmailSender implements EmailSender {
       'token=[redacted]',
     );
     this.logger.log(
-      `EMAIL_VERIFICATION queued to=${payload.to} applicantId=${payload.applicantId} link=${safeLink}`,
+      `EMAIL_VERIFICATION queued to=${payload.to} reference=${payload.applicationReference} link=${safeLink}`,
     );
   }
 }

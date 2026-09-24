@@ -76,7 +76,6 @@ export class BrevoEmailSender implements EmailSender {
     const {
       fullName,
       verificationLink,
-      applicantId,
       applicationId,
       applicationReference,
     } = payload;
@@ -87,7 +86,6 @@ export class BrevoEmailSender implements EmailSender {
         `Hi ${fullName},`,
         '',
         'Your admissions registration was received.',
-        `Applicant ID: ${applicantId}`,
         `Application ID: ${applicationId}`,
         `Reference: ${applicationReference}`,
         '',
@@ -100,7 +98,6 @@ export class BrevoEmailSender implements EmailSender {
         <p>Hi ${escapeHtml(fullName)},</p>
         <p>Your admissions registration was received.</p>
         <ul>
-          <li><strong>Applicant ID:</strong> ${escapeHtml(applicantId)}</li>
           <li><strong>Application ID:</strong> ${escapeHtml(applicationId)}</li>
           <li><strong>Reference:</strong> ${escapeHtml(applicationReference)}</li>
         </ul>

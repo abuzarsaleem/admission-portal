@@ -32,6 +32,9 @@ export class ApplicationAcademicInformationEntity {
   @Column({ type: 'varchar', length: 80, name: 'degree_type' })
   degreeType!: string;
 
+  @Column({ type: 'varchar', length: 80, name: 'roll_number', nullable: true })
+  rollNumber!: string | null;
+
   @Column({ type: 'varchar', length: 200, name: 'qualification_name' })
   qualificationName!: string;
 

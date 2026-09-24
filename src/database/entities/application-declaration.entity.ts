@@ -51,13 +51,14 @@ export class ApplicationDeclarationEntity {
   @Column({ type: 'text', name: 'disciplinary_issue_details', nullable: true })
   disciplinaryIssueDetails!: string | null;
 
+  /** Offering declaration UUIDs the applicant accepted (from offering_declarations). */
   @Column({
-    type: 'varchar',
-    length: 100,
-    name: 'selected_test_centre_id',
-    nullable: true,
+    type: 'uuid',
+    array: true,
+    name: 'accepted_offering_declaration_ids',
+    default: '{}',
   })
-  selectedTestCentreId!: string | null;
+  acceptedOfferingDeclarationIds!: string[];
 
   @Column({ type: 'timestamptz', name: 'submission_date', nullable: true })
   submissionDate!: Date | null;

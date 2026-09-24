@@ -40,14 +40,23 @@ async function bootstrap() {
       stopAtFirstError: false,
       validationError: { target: false, value: false },
       exceptionFactory: (errors) => {
-        const messages = errors.flatMap((error) => {
-          if (error.constraints) {
-            return Object.values(error.constraints);
-          }
-          return (error.children ?? []).flatMap((child) =>
-            child.constraints ? Object.values(child.constraints) : [],
-          );
-        });
+        const collect = (
+          list: typeof errors,
+          prefix = '',
+        ): string[] =>
+          list.flatMap((error) => {
+            const path = prefix
+              ? `${prefix}.${error.property}`
+              : error.property;
+            const own = error.constraints
+              ? Object.values(error.constraints).map((m) => `${path}: ${m}`)
+              : [];
+            const nested = error.children?.length
+              ? collect(error.children, path)
+              : [];
+            return [...own, ...nested];
+          });
+        const messages = collect(errors);
         return new BadRequestException({
           statusCode: 400,
           code: 'VALIDATION_ERROR',
@@ -95,13 +104,14 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
-  // Keep DocumentBuilder tag order — do not set tagsSorter (functions cannot be
-  // serialized into the Swagger UI HTML config and crash the page as null).
+  // Preserve DocumentBuilder / controller order (application step sequence).
+  // 'alpha' sorts by path and breaks academic → programme → profile → …
   SwaggerModule.setup('docs', app, document, {
     jsonDocumentUrl: 'docs/json',
     swaggerOptions: {
       persistAuthorization: true,
-      operationsSorter: 'alpha',
+      tagsSorter: () => 0,
+      operationsSorter: () => 0,
     },
   });
 

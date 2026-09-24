@@ -122,8 +122,17 @@ export class SetApplicantPasswordDto {
     maxLength: 128,
   })
   @IsString()
-  @MinLength(8)
-  @MaxLength(128)
+  @MinLength(8, { message: 'Password must be at least 8 characters' })
+  @MaxLength(128, { message: 'Password must be at most 128 characters' })
+  @Matches(/[A-Z]/, {
+    message: 'Password must include at least 1 uppercase letter',
+  })
+  @Matches(/[0-9]/, {
+    message: 'Password must include at least 1 number',
+  })
+  @Matches(/[A-Za-z]/, {
+    message: 'Password must include letters',
+  })
   password!: string;
 }
 
