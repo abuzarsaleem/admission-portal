@@ -1,0 +1,833 @@
+ADM-F002 — Application Completion & Submission
+Implementation Specification v1.1 — Revised Sequential Data Model
+Taleem AI CMS — Online Admissions Portal
+
+Attribute
+Value
+Feature ID
+ADM-F002
+Feature Name
+Application Completion & Submission
+Version
+1.5
+Status
+Development Baseline — Admin Declaration Configuration Added
+Upstream
+ADM-F001 — Registration Only
+Step order
+1 Academic Information → 2 Programme Selection → 3 Profile → 4 Declaration
+Key model rule
+No duplication of registration/personal identity data
+
+1. Revised Implementation Decisions
+ADM-F002 uses the existing application row created by ADM-F001; it does not create a second applicant/personal-information record.
+The four-step applicant flow is implemented in this order: Academic Information → Programme Selection → Profile → Declaration.
+The latest project-defined order supersedes the sequence shown in the current ADM-F002 FSD for implementation. The FSD business rules remain applicable unless they conflict with this explicit sequencing decision.
+Academic Information is a repeating child collection. Each academic record has a degree type such as Matric, FSC, etc.
+Academic supporting documents are stored in a separate child table linked to the relevant academic information record.
+Application addresses are normalized into a separate application-address table and reference the existing Country, Province and City masters.
+Application contacts are normalized into a separate application-contact table with a contact_type such as PARENT or GUARDIAN. Emergency contact remains distinguishable by contact type/role and must satisfy the blood-relation rule.
+Applicant identity fields already stored in admissions_applications are updated there by the Profile step; they are not copied into F002 child tables.
+2. Final Four-Step Workflow
+ADM-F002 — PRIMARY WORKFLOW
+ADM-F002└── 1. Academic Information    ├── Load existing applicant_id from ADM-F001    ├── Add one or more academic records    │   ├── Degree type (e.g. Matric, FSC, etc.)    │   ├── Qualification / degree name    │   ├── Board / institution    │   ├── Passing year    │   ├── Division    │   ├── Grade    │   ├── Marks / GPA obtained    │   ├── Marks / GPA total or scale    │   └── Calculated percentage    ├── Upload academic documents for the relevant record    └── Save Step 1        ↓└── 2. Programme Selection    ├── Show intake as read-only context    ├── Select qualification level    ├── Programme preference 1 — mandatory    ├── Programme preference 2 — optional    ├── Maximum two preferences    ├── Validate against published offering    ├── Derive department from selected programme    └── Save Step 2        ↓└── 3. Profile    ├── Update shared admissions_applications row    │   ├── Applicant name    │   ├── Gender    │   ├── Marital status    │   ├── Date of birth    │   ├── Identity/domicile/nationality fields    │   ├── Mobile / telephone    │   ├── Employment    │   ├── Disability declaration    │   ├── Referral source    │   └── Profile photograph    ├── Save application addresses    │   ├── PRIMARY    │   └── SECONDARY / other supported address types    ├── Save application contacts    │   ├── PARENT    │   ├── GUARDIAN    │   └── EMERGENCY    └── Save Step 3        ↓└── 4. Declaration    ├── Verify Steps 1–3 saved    ├── Disciplinary disclosure    ├── Disciplinary details when declared    ├── Select valid test centre    ├── Accept institutional declaration    └── Submit        ↓    Complete (Submitted)    ├── overall_completion = 100%    ├── submission timestamp recorded    ├── declaration becomes immutable    ├── admin queue publication    └── submission notifications
+3. No-Duplication Data Ownership
+Business Data
+Authoritative Table
+Owned/Updated By
+Do Not Store Again In
+Applicant ID / Application ID / reference / intake / login email / password / registration identity
+admissions_applications
+ADM-F001 registration; F002 reads shared identity
+Any F002 child table
+Applicant name / gender / marital status / DOB / identity / nationality / disability / referral / photograph
+admissions_applications
+ADM-F002 Profile
+Separate personal_information table
+Application addresses
+admissions_application_addresses
+ADM-F002 Profile
+admissions_applications address text columns
+Parent / guardian / emergency contacts
+admissions_application_contacts
+ADM-F002 Profile
+admissions_applications
+Academic qualifications
+admissions_application_academic_information
+ADM-F002 Academic step
+admissions_applications
+Academic supporting documents
+admissions_application_academic_documents
+ADM-F002 Academic step
+academic_information file columns
+Programme preferences
+admissions_application_programme_selection + options
+ADM-F002 Programme step
+admissions_applications programme_id if using preference collection
+Declaration / test centre / disciplinary disclosure
+admissions_application_declarations
+ADM-F002 Declaration
+admissions_applications, except final application status/completion fields
+
+4. Physical Database Design
+4.1 admissions_applications — Shared F001/F002 Record
+This is the only table created by ADM-F001.
+ADM-F002 Profile updates its profile columns in this same row.
+F002 must not introduce a duplicate personal_information table.
+4.2 admissions_application_academic_information
+Column
+Type
+Req.
+Meaning
+Sample Data
+academic_information_id
+PK
+Yes
+Unique academic record.
+ACAD-0000456
+applicant_id
+FK
+Yes
+Parent admissions_applications.applicant_id.
+APL-0000123
+degree_type
+String / controlled value
+Yes
+Academic level/type such as Matric, FSC, Intermediate, Bachelor, etc.
+FSC
+qualification_name
+String
+Yes
+Specific qualification/degree title.
+FSC Pre-Engineering
+board_or_institution
+String
+Yes
+Awarding board or institution.
+Board of Intermediate & Secondary Education Lahore
+passing_year
+String/Integer
+Yes
+Year qualification was obtained.
+2025
+division
+String
+Yes
+Division achieved.
+1st
+grade
+String
+Yes
+Grade achieved.
+A
+marks_or_gpa_obtained
+String
+Yes
+Marks or GPA obtained.
+875
+marks_or_gpa_total
+String
+Yes
+Total marks or GPA scale.
+1100
+percentage
+Decimal/String
+Yes
+Calculated/recorded percentage.
+79.55
+created_at
+DateTime
+Yes
+Creation timestamp.
+2026-09-23T11:00:00+05:00
+updated_at
+DateTime
+Yes
+Last update timestamp.
+2026-09-23T11:00:00+05:00
+
+4.3 admissions_application_academic_documents
+Column
+Type
+Req.
+Meaning
+Sample Data
+academic_document_id
+PK
+Yes
+Unique document record.
+ACDOC-0000789
+applicant_id
+FK
+Yes
+Parent application.
+APL-0000123
+academic_information_id
+FK
+Yes
+Academic record to which the document belongs.
+ACAD-0000456
+document_type
+String / controlled value
+Yes
+e.g. certificate, marksheet, transcript; final controlled list to be configured.
+MARKSHEET
+file_reference
+String
+Yes
+Reference to document storage.
+s3://admissions/academic/APL-0000123/ACAD-0000456/marksheet.pdf
+original_file_name
+String
+No
+Original uploaded filename.
+FSC_Marksheet.pdf
+mime_type
+String
+No
+Stored MIME type.
+application/pdf
+file_size
+Integer
+No
+Stored file size.
+248736
+uploaded_at
+DateTime
+Yes
+Upload timestamp.
+2026-09-23T11:05:00+05:00
+verification_status
+Enum
+Yes
+Initial status can be UNVERIFIED; later verification belongs to downstream document verification.
+UNVERIFIED
+
+4.4 admissions_application_programme_selection (UNDERGRADUATE,POSTGRADUATE,PHD)
+
+Column
+Type
+Req.
+Meaning
+Sample Data
+applicant_id
+PK/FK
+Yes
+One programme-selection record per application.
+APL-0000123
+intake_session_id
+FK
+Yes
+Read-only intake context.
+INT-2026-FALL-001
+qualification_level
+String/FK
+Yes
+Qualification level on which application is based.
+UNDERGRADUATE
+applied_date
+DateTime
+Yes
+Date/time programme selection is saved.
+2026-09-23T11:15:00+05:00
+step_saved
+Boolean
+Yes
+Step completion marker.
+TRUE
+saved_at
+DateTime
+No
+Last save timestamp.
+2026-09-23T11:15:00+05:00
+
+4.5 admissions_application_programme_options
+Column
+Type
+Req.
+Meaning
+Sample Data
+programme_option_id
+PK
+Yes
+Unique preference record.
+PO-0000345
+applicant_id
+FK
+Yes
+Parent application.
+APL-0000123
+programme_offering_id
+FK
+Yes
+Published offering selected by applicant.
+OFF-2026-CS-001
+preference_order
+Integer
+Yes
+1 or 2.
+1
+created_at
+DateTime
+Yes
+Creation timestamp.
+2026-09-23T11:15:00+05:00
+updated_at
+DateTime
+Yes
+Update timestamp.
+2026-09-23T11:15:00+05:00
+
+UNIQUE(applicant_id, preference_order).
+UNIQUE(applicant_id, programme_offering_id).
+CHECK preference_order IN (1,2).
+Preference 1 is mandatory; preference 2 is optional.
+4.6 admissions_application_addresses
+Column
+Type
+Req.
+Meaning
+Sample Data
+application_address_id
+PK
+Yes
+Unique address record.
+ADDR-0000678
+applicant_id
+FK
+Yes
+Parent application.
+APL-0000123
+address_type
+Enum
+Yes
+PRIMARY, SECONDARY and other approved address types.
+PRIMARY
+address_line_1
+String
+Yes
+Street/house/address information.
+House 25, Street 12, Johar Town
+address_line_2
+String
+No
+Additional address detail.
+—
+country_id
+FK
+Yes
+Existing Country master.
+PK
+province_id
+FK
+Yes
+Existing Province master.
+PK-PB
+city_id
+FK
+Yes
+Existing City master.
+PK-PB-LHE
+postal_code
+String
+No
+Postal/ZIP code.
+54782
+is_same_as_primary
+Boolean
+No
+Used where secondary address is explicitly same as primary.
+FALSE
+created_at
+DateTime
+Yes
+Creation timestamp.
+2026-09-23T11:30:00+05:00
+updated_at
+DateTime
+Yes
+Update timestamp.
+2026-09-23T11:30:00+05:00
+
+Do not duplicate country, province or city master data in the application record.
+Use foreign keys to the existing Country → Province → City hierarchy.
+At most one PRIMARY address per application.
+At most one SECONDARY address per application unless future business rules explicitly support multiple secondary addresses.
+4.7 admissions_application_contacts
+Column
+Type
+Req.
+Meaning
+Sample Data
+application_contact_id
+PK
+Yes
+Unique contact record.
+CONT-0000890
+applicant_id
+FK
+Yes
+Parent application.
+APL-0000123
+contact_type
+Enum
+Yes
+PARENT, GUARDIAN, EMERGENCY.
+PARENT
+name
+String
+Yes
+Contact full name.
+Muhammad Aslam
+identity_document_number
+String
+No
+CNIC/passport where applicable.
+35202-7654321-1
+relationship
+String
+Yes
+Relationship to applicant; emergency relation must satisfy blood-relation rule.
+FATHER
+occupation
+String
+No
+Occupation.
+Business
+mobile_number
+String
+Yes
+Mobile contact.
++92 300 7654321
+telephone
+String
+No
+Alternative telephone.
+042-1234567
+email
+String
+No
+Email where available.
+aslam.ahmed@example.com
+address_line
+String
+No
+Contact address if required by the business form.
+House 25, Street 12, Johar Town, Lahore
+created_at
+DateTime
+Yes
+Creation timestamp.
+2026-09-23T11:35:00+05:00
+updated_at
+DateTime
+Yes
+Update timestamp.
+2026-09-23T11:35:00+05:00
+
+Use contact_type to distinguish Parents/Guardian/Emergency contacts; do not create separate father_contact, guardian_contact and emergency_contact tables.
+If the UI captures father and mother separately, the implementation may use PARENT records with an optional relationship value such as Father/Mother.
+The emergency contact must be a blood relation other than the father or guardian.
+4.8 admissions_application_declarations
+Column
+Type
+Req.
+Meaning
+Sample Data
+applicant_id
+PK/FK
+Yes
+One declaration record per application.
+APL-0000123
+declaration_accepted
+Boolean
+Yes
+Explicit institutional declaration acceptance.
+TRUE
+declaration_acceptance_date
+DateTime
+Yes
+Acceptance timestamp.
+2026-09-23T11:50:00+05:00
+declaration_version
+String
+Recommended
+Version of declaration presented to applicant.
+DECL-1.0
+disciplinary_issue_declared
+Boolean
+Yes
+Mandatory disclosure.
+FALSE
+disciplinary_issue_details
+Text
+Conditional
+Required when disciplinary issue is declared.
+—
+selected_test_centre_id
+FK
+Yes
+Valid test centre for applied programme.
+TC-LHR-001
+submission_date
+DateTime
+Yes
+Final submission timestamp.
+2026-09-23T11:50:00+05:00
+created_at
+DateTime
+Yes
+Creation timestamp.
+2026-09-23T11:50:00+05:00
+updated_at
+DateTime
+Yes
+Update timestamp.
+2026-09-23T11:50:00+05:00
+
+5. Step-State Model
+Application completion
+REGISTERED (created by F001)└── Step 1 Academic saved    └── Step 2 Programme saved        └── Step 3 Profile saved            └── Step 4 Declaration submitted                └── COMPLETE (SUBMITTED)                    ├── ADM-F003 processing fee                    └── ADM-F004 document submissionIf a saved step is edited before approval:└── Revalidate    ├── valid → save + keep workflow position    └── invalid → return field errors; do not mark step completeAfter ADM-F005 approval:└── application becomes read-only to applicant
+6. Progress Calculation
+The UI displays four steps and the saved-step count.
+Implementation can use 0/25/50/75/100% for four completed steps, unless the project defines a different completion formula.
+Saving a step updates its completion marker and recalculates overall_completion.
+Submission sets overall_completion to 100% atomically with the submitted status.
+7. Academic Step Validation
+Step 1 — Academic Information
+Open Step 1├── Load existing application├── Existing academic records?│   ├── Yes → display/edit/add│   └── No → allow add├── Validate every record│   ├── degree_type present│   ├── qualification_name present│   ├── board/institution present│   ├── passing_year valid│   ├── division present│   ├── grade present│   ├── marks/GPA obtained present│   ├── marks/GPA total/scale present│   └── percentage valid/calculable├── At least one complete record?│   ├── No → block save│   └── Yes → save academic records└── Save linked academic documents where provided    └── mark Step 1 complete
+8. Programme Step Validation
+Step 2 — Programme Selection
+Open Step 2├── Load published intake context├── Select qualification level├── Select preference 1│   └── required├── Select preference 2│   └── optional├── Maximum two options(can be modified)├── Validate each option against published offering├── Derive department from authoritative programme offering└── Save selection + preferences    └── mark Step 2 complete
+9. Profile Step Validation
+Step 3 — Profile
+Open Step 3├── Update shared admissions_applications row│   ├── name│   ├── gender│   ├── marital status│   ├── DOB│   ├── identity/domicile/nationality│   ├── mobile/telephone│  │   ├── disability│   ├── referral source│   └── profile photograph├── Validate application addresses│   ├── PRIMARY required│   ├── country/province/city FK valid│   └── secondary if required├── Validate contacts│   ├── PARENT / GUARDIAN as applicable│   ├── EMERGENCY required│   └── emergency relationship is blood relation and not father/guardian└── Transaction    ├── update shared application row    ├── upsert addresses    ├── upsert contacts    └── mark Step 3 complete
+10. Declaration and Submission
+Step 4 — Declaration
+Open Step 4├── Verify Academic step saved├── Verify Programme step saved├── Verify Profile step saved├── Answer disciplinary disclosure├── If YES → require disciplinary details├── Select valid test centre├── Accept declaration└── Submit transaction    ├── re-check all four step conditions    ├── set application_status = COMPLETE    ├── set overall_completion = 100    ├── set declaration/submission timestamp    ├── freeze declaration data    ├── publish admin queue record/read model    └── dispatch WhatsApp + email + SMS notification
+11. API Contract
+API ownership rule: ADM-F002 owns only application-completion and submission endpoints. Registration, authentication/session, published intake/programme/criteria/fee, and other existing platform APIs are dependencies and are not redefined here.
+Method
+Endpoint
+Purpose
+GET
+/api/v1/applicant/applications/{applicant_id}/academic
+Get academic information and documents
+POST/PUT
+/api/v1/applicant/applications/{applicant_id}/academic
+Create/update academic information
+POST
+/api/v1/applicant/applications/{applicant_id}/academic/{academic_information_id}/documents
+Upload academic document
+DELETE
+/api/v1/applicant/applications/{applicant_id}/academic/{academic_information_id}/documents/{document_id}
+Remove academic document before submission
+GET/PUT
+/api/v1/applicant/applications/{applicant_id}/programme
+Get/save programme selection and preferences
+GET/PUT
+/api/v1/applicant/applications/{applicant_id}/profile
+Get/save applicant profile
+GET/PUT
+/api/v1/applicant/applications/{applicant_id}/addresses
+Get/save application addresses
+GET/PUT
+/api/v1/applicant/applications/{applicant_id}/contacts
+Get/save parent/guardian/emergency contacts
+GET/PUT
+/api/v1/applicant/applications/{applicant_id}/declaration
+Get/save declaration
+POST
+/api/v1/applicant/applications/{applicant_id}/submit
+Validate and submit the completed application
+
+12. Failure Handling Hierarchy
+Failure handling
+ADM-F002 failure├── Unauthenticated → 401├── Cross-application access → 403 / no disclosure├── Approved/read-only → 409 or domain validation error├── Academic records missing/incomplete → step remains incomplete├── Academic document invalid → reject upload; keep prior valid records├── Third programme option → reject selection├── Unpublished programme → reject save├── Missing PRIMARY address → reject Profile save├── Invalid Country/Province/City relation → reject address save├── Missing emergency contact → reject Profile save├── Invalid emergency relationship → reject Profile save├── Declaration before Steps 1–3 → keep locked├── Disciplinary YES without details → reject submission├── Invalid/missing test centre → reject submission├── Declaration not accepted → reject submission├── Already submitted → idempotent response / no duplicate submission├── Notification failure → submission remains committed; retry asynchronously└── Session timeout    ├── saved data remains    └── unsaved current-step changes are lost per current FSD behavior
+13. Data Integrity Constraints
+All F002 child tables use applicant_id as the parent foreign key.
+No F002 table duplicates registered_email, password_hash, application_reference or cnic_passport_number.
+No F002 table duplicates applicant name/mobile as an applicant master; Profile updates the shared admissions_applications row.
+Academic information is one-to-many per application.
+Academic documents are one-to-many per academic information record.
+Programme selection is one-to-one per application, with one-to-two programme option rows.
+Addresses are one-to-many by address_type with uniqueness enforced for PRIMARY and SECONDARY where applicable.
+Contacts are one-to-many by contact_type; contact_type controls parent/guardian/emergency semantics.
+Declaration is one-to-one per application.
+14. Security, Audit and Storage
+Profile photographs and academic documents are stored through the approved document storage service; the database stores file references and metadata.
+CNIC/passport and disciplinary information are sensitive and must not be exposed in logs or broad reporting APIs.
+All child-record access must verify the authenticated applicant owns the applicant_id.
+Profile and child data remain editable until approval; after approval, applicant APIs become read-only.
+Audit step saves, submission, declaration acceptance, document uploads and profile changes.
+15. Implementation Order
+Implementation sequence
+1. Migration   ├── Keep/create admissions_applications as the shared F001 table   ├── Create academic information   ├── Create academic documents   ├── Create programme selection + options   ├── Create application addresses   ├── Create application contacts   └── Create declarations2. Repository layer3. Validation/domain services4. F002-owned step APIs5. File storage integration6. Submission transaction7. Notification/outbox integration8. Applicant UI in Academic → Programme → Profile → Declaration order9. Admin queue integration10. Automated tests + migration verification
+16. Acceptance Criteria — Revised
+Applicant begins F002 using the application record created by F001.
+Academic Information is the first step and requires at least one complete academic record.
+Each academic record supports a degree type such as Matric or FSC and can have supporting documents.
+Programme Selection is the second step and permits a maximum of two published programme preferences.
+Profile is the third step and updates the shared admissions_applications row without duplicating identity data.
+Addresses reference existing Country, Province and City tables through foreign keys.
+Contacts use contact_type to distinguish Parent, Guardian and Emergency contacts.
+Declaration is accessible only after Academic, Programme and Profile steps are saved.
+Submission requires declaration acceptance, disciplinary response/details and valid test-centre selection.
+Successful submission sets the application to Complete (Submitted), 100% completion and records the submission timestamp.
+Notification failure does not roll back a committed submission.
+Approval makes the applicant's application read-only.
+17. Open Decisions to Confirm
+Exact controlled values for degree_type (Matric, FSC, etc.) and whether these are seeded in a master table or configured as an enum/reference.
+Exact academic document types and whether each degree type has mandatory document requirements.
+Whether Parent is one contact record or multiple PARENT records (e.g. Father/Mother) and which are mandatory.
+Exact supported application address types beyond PRIMARY and SECONDARY.
+Whether the emergency contact must always be a separate contact record even when a parent/guardian could technically satisfy the relationship rule.
+Exact profile photograph formats and maximum size.
+Exact progress percentage behavior if a step is saved and later edited.
+Exact declaration versioning policy.
+18. AI Coding Assistant Contract
+Use admissions_applications as the single applicant/application identity record.
+Never create an admissions_application_personal_information table.
+Never duplicate registered email, CNIC/passport or applicant identity fields in F002 child tables.
+Implement F002 step order strictly as Academic → Programme → Profile → Declaration.
+Academic information is repeatable and requires at least one record before Step 1 is complete.
+Academic documents must reference an academic information record.
+Programme selection must validate against the published offering and never accept more than two preferences.
+Profile updates the shared application row and separate address/contact child records.
+Use Country/Province/City foreign keys for application addresses.
+Use contact_type for Parent/Guardian/Emergency contacts.
+Declaration remains locked until the first three steps are saved.
+Submission is atomic; notification provider failure must not undo a successful submission.
+19. Source Traceability
+ADM-F002 FSD v1.0 defines the four-step application, partial saves, minimum academic history, programme limit, declaration requirements and read-only-after-approval behavior. fileciteturn9file6 fileciteturn9file7
+ADM-F002 FSD v1.0 currently describes Personal Information as Step 1, Programme as Step 2 and Academic as Step 3; the implementation specification intentionally changes the execution order to Academic → Programme → Profile → Declaration per the latest project decision. fileciteturn10file6
+ADM-F002 FSD v1.0 identifies the existing Country/Province/District-style domicile information and personal/address/contact information; this implementation normalizes application addresses against the project's separate geographic master tables. fileciteturn10file4
+ADM-F001 FSD v1.0 provides the registration identity model and uniqueness requirements; this revision consolidates those fields into one shared admissions_applications table. fileciteturn8file7
+20. Definition of Done
+☐ One physical admissions_applications table is used for F001 registration and F002 shared applicant/profile data.
+☐ No duplicate personal/applicant identity table exists.
+☐ F001 contains only registration/authentication/handoff behavior.
+☐ F002 executes Academic → Programme → Profile → Declaration.
+☐ Academic information and academic documents are separate normalized tables.
+☐ Degree type is captured for every academic record.
+☐ Application addresses reference Country, Province and City masters.
+☐ Application contacts use contact_type.
+☐ All mandatory validations and FSD business rules are automated.
+☐ Submission is transactional and idempotent.
+☐ Read-only-after-approval is enforced server-side.
+☐ No unresolved schema duplication remains.
+API non-duplication rule. ADM-F002 must reuse the existing Applicant/IAM authentication and session capability, the ADM-F000 published offering APIs, and any existing shared application/hub API where already implemented. It must not recreate registration, login/logout, password recovery, intake, programme catalogue, criteria, or fee endpoints.
+Declaration Configuration — Admin Controlled
+ADM-F002 shall include the declaration configuration required for the applicant Declaration step. The declaration is created/configured by an authorized admissions administrator before applicants can complete Step 4. The applicant only reads the active declaration and records acceptance; the applicant does not create or edit the declaration text.
+
+Administrative Declaration Workflow
+ADM-F002
+└── Admin Declaration Configuration
+    ├── 1. Create Declaration
+    │   ├── Select intake session
+    │   ├── Enter declaration text
+    │   ├── Assign declaration version
+    │   └── Set effective/activation date
+    ├── 2. Validate Declaration
+    │   ├── Declaration text is mandatory
+    │   ├── Version is mandatory and unique within the applicable scope
+    │   └── Intake association is mandatory
+    ├── 3. Activate Declaration
+    │   └── Only one active declaration may apply to an applicant for the applicable intake at a time
+    └── 4. Applicant Consumption
+        ├── Applicant opens Step 4
+        ├── System loads the active declaration for the applicant's intake
+        ├── Applicant accepts declaration
+        ├── System stores accepted declaration version
+        └── Applicant proceeds to submission
+
+Declaration Configuration Data Model
+Column
+Type
+Req.
+Meaning
+Sample Data
+declaration_id
+PK
+Yes
+Unique declaration configuration record.
+DECL-000001
+intake_session_id
+FK
+Yes
+Intake for which the declaration applies.
+INT-2026-FALL-001
+declaration_version
+String
+Yes
+Version shown to the applicant and stored on acceptance.
+DECL-2026-01
+declaration_text
+Text
+Yes
+Full institutional declaration text.
+I hereby declare that the information provided is complete and accurate.
+effective_from
+DateTime
+Yes
+Date/time from which the declaration can be used.
+2026-09-01T00:00:00+05:00
+effective_to
+DateTime
+No
+Optional end of applicability.
+—
+status
+Enum
+Yes
+DRAFT, ACTIVE, INACTIVE.
+ACTIVE
+created_by
+Identifier
+Yes
+Administrator who created the declaration.
+USR-ADM-001
+created_at
+DateTime
+Yes
+Creation timestamp.
+2026-08-20T10:00:00+05:00
+updated_at
+DateTime
+Yes
+Last update timestamp.
+2026-08-20T10:00:00+05:00
+Declaration API Ownership
+These endpoints are F002-owned because the declaration is part of the F002 submission contract. They serve both the administrative configuration side and applicant consumption side; existing IAM authorization is reused.
+Admin API
+POST /api/v1/admin/applications/declarations — create a declaration for an intake.
+Admin Update API
+PUT /api/v1/admin/applications/declarations/{declaration_id} — update a declaration while it is DRAFT.
+Admin Activate API
+POST /api/v1/admin/applications/declarations/{declaration_id}/activate — activate the declaration for its applicable intake.
+Admin Read API
+GET /api/v1/admin/applications/declarations?intake_session_id={intake_session_id} — list declarations for an intake.
+Applicant Read API
+GET /api/v1/applicant/applications/{applicant_id}/declaration — return the active declaration applicable to the applicant's intake and the applicant's current acceptance state.
+Applicant Acceptance
+PUT /api/v1/applicant/applications/{applicant_id}/declaration — record acceptance against the currently active declaration version. The declaration text itself is not editable by the applicant.
+
+Declaration Rules
+├── Declaration must exist before Step 4 can be completed.
+├── Applicant sees the active declaration associated with the application's intake.
+├── Applicant cannot modify declaration text or version.
+├── Acceptance records the exact declaration version presented.
+├── A submitted application retains the accepted declaration version as an immutable submission record.
+├── A new declaration version does not change historical applicant acceptance records.
+└── If no active declaration exists, submission is blocked and the administrator must configure/activate one.
+
+Updated F002 End-to-End Flow
+ADM-F002
+├── Admin Configuration
+│   └── Create → Validate → Activate Declaration
+│
+└── Applicant Completion
+    ├── 1. Academic Information
+    ├── 2. Programme Selection
+    ├── 3. Profile
+    └── 4. Declaration
+        ├── Load active declaration
+        ├── Applicant reviews declaration
+        ├── Applicant accepts declaration
+        ├── Store declaration version + acceptance timestamp
+        └── Submit application
+
+No Duplication / Boundary
+ADM-F002 owns the declaration configuration and applicant acceptance contract. ADM-F001 remains registration-only and does not store or manage declaration text. The declaration is not duplicated into admissions_applications; the application declaration record stores the accepted declaration version/reference and acceptance details.
+Programme Eligibility Validation After Academic Information
+Source-backed boundary. ADM-F002 requires programme options to be validated against the published offering. ADM-F000 publishes admission criteria but explicitly does not evaluate applicant eligibility. Therefore automatic eligibility evaluation requires an approved eligibility-rule contract and must not be invented from the current FSD.
+Recommended Applicant Flow
+ADM-F002
+└── 1. Academic Information
+    ├── Applicant enters one or more academic records
+    ├── Degree type (for example Matric, FSC, Bachelor, etc.)
+    ├── Board / institution, passing year and marks / GPA
+    └── Save academic information
+└── 2. Programme Selection
+    ├── Load programmes from the current published intake
+    ├── Applicant selects Programme Option 1
+    ├── Validate programme availability
+    ├── Validate eligibility against saved academic information
+    │   ├── Eligible → allow selection and continue
+    │   ├── Not eligible → prevent selection/save and show approved reason(s)
+    │   └── Cannot evaluate → do not falsely mark eligible; return approved validation state
+    ├── Applicant may select Programme Option 2
+    └── Repeat validation for Option 2
+└── 3. Continue to Profile
+    └── Only valid programme selections are persisted
+Eligibility Validation Rules
+Rule
+Rule Name
+Implementation
+1
+Published offering
+Programme must belong to the current published intake offering.
+2
+Academic information
+At least one academic qualification must be saved before eligibility is evaluated.
+3
+Criteria retrieval
+Retrieve the admission criteria configured for the selected programme offering.
+4
+Machine-evaluable criteria
+Only approved machine-readable criteria may be evaluated automatically.
+5
+Not eligible
+Reject the programme selection and return approved applicant-facing reason(s).
+6
+Not evaluable
+Do not guess eligibility; follow the approved handling for criteria that cannot be evaluated automatically.
+7
+Revalidation
+Recheck when academic information/programme selection changes and before final submission.
+Applicant Experience for an Ineligible Programme
+Run the eligibility check when the applicant selects or saves a programme, before committing the preference.
+If not eligible, keep the programme unselected and display a clear validation message.
+Example: "You do not meet the admission criteria for this programme based on the academic information provided."
+Where approved by the institution, show the unmet criterion, for example: "Required qualification: FSC Pre-Engineering."
+Allow the applicant to return to Academic Information, correct/save the data, and retry.
+Do not expose internal rule IDs, scoring logic, or sensitive administrative data.
+Important Scope Decision
+The current ADM-F000 source explicitly states that ADM-F000 publishes criteria and does not evaluate applicant eligibility. ADM-F002 requires validation against the published offering but does not define an eligibility engine, criterion vocabulary, rule syntax, or exact applicant-facing behavior for an ineligible programme. Therefore automatic eligibility evaluation is a proposed implementation enhancement and requires business approval.
+Failure Handling
+Programme Selection
+├── Programme unavailable → reject → "Programme is not available for this intake."
+├── Academic information incomplete → prevent evaluation → ask applicant to complete academic information
+├── NOT_ELIGIBLE → reject → show approved eligibility reason(s)
+├── Eligibility service unavailable → do not silently accept → return validation error/state
+└── ELIGIBLE → persist programme preference
+Submission Revalidation
+Before final submission, revalidate the selected programme against the current published offering and approved eligibility rules using the latest saved academic information. This prevents stale programme selections from being submitted.
+No Duplicate API Requirement
+No new public eligibility endpoint is required. The existing F002 programme GET/PUT contract can return eligibility validation results during programme selection/save. An internal EligibilityService or integration adapter can perform the evaluation. This avoids creating a duplicate programme-selection or validation API.
+Acceptance Criteria — Eligibility
+AC ID
+Given
+When
+Then
+AC-F002-ELG-001
+Academic information is saved
+Applicant selects a published programme
+Eligibility is checked using the approved criteria/rules before the programme preference is saved.
+AC-F002-ELG-002
+Applicant is not eligible
+Applicant selects the programme
+Selection is prevented and an approved eligibility message is displayed.
+AC-F002-ELG-003
+Academic information is corrected
+Applicant saves updated academic information and retries
+Eligibility is evaluated using the latest saved academic data.
+AC-F002-ELG-004
+Eligibility cannot be evaluated
+Applicant selects the programme
+The system does not falsely mark the applicant eligible and returns the approved validation state/error.
+AC-F002-ELG-005
+Programme is selected
+Applicant submits the application
+Programme availability and eligibility are revalidated before submission.
+Sample data note. The examples use the same illustrative applicant (APL-0000123) to demonstrate relationships without duplicating personal data across child tables. Master/upstream IDs are illustrative references.

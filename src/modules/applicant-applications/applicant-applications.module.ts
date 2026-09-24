@@ -1,0 +1,35 @@
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { ApplicationAcademicDocumentEntity } from '../../database/entities/application-academic-document.entity.js';
+import { ApplicationAcademicInformationEntity } from '../../database/entities/application-academic-information.entity.js';
+import { ApplicationAddressEntity } from '../../database/entities/application-address.entity.js';
+import { ApplicationContactEntity } from '../../database/entities/application-contact.entity.js';
+import { ApplicationDeclarationEntity } from '../../database/entities/application-declaration.entity.js';
+import { ApplicationProgrammeOptionEntity } from '../../database/entities/application-programme-options.entity.js';
+import { ApplicationProgrammeSelectionEntity } from '../../database/entities/application-programme-selection.entity.js';
+import { ApplicationEntity } from '../../database/entities/application.entity.js';
+import { ProgrammeOfferingEntity } from '../../database/entities/programme-offering.entity.js';
+import { StorageModule } from '../../integrations/storage/storage.module.js';
+import { ApplicantApplicationsController } from './applicant-applications.controller.js';
+import { ApplicantApplicationsService } from './applicant-applications.service.js';
+
+@Module({
+  imports: [
+    StorageModule,
+    TypeOrmModule.forFeature([
+      ApplicationEntity,
+      ApplicationAcademicInformationEntity,
+      ApplicationAcademicDocumentEntity,
+      ApplicationProgrammeSelectionEntity,
+      ApplicationProgrammeOptionEntity,
+      ApplicationAddressEntity,
+      ApplicationContactEntity,
+      ApplicationDeclarationEntity,
+      ProgrammeOfferingEntity,
+    ]),
+  ],
+  controllers: [ApplicantApplicationsController],
+  providers: [ApplicantApplicationsService],
+  exports: [ApplicantApplicationsService],
+})
+export class ApplicantApplicationsModule {}

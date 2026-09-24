@@ -1,13 +1,15 @@
 import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { join } from 'path';
 import { AppModule } from './app.module.js';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter.js';
 import { ResponseTransformInterceptor } from './common/interceptors/response-transform.interceptor.js';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const config = app.get(ConfigService);
 
   app.enableCors({
@@ -16,6 +18,15 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
     credentials: true,
   });
+
+  const storageDriver = (
+    process.env.STORAGE_DRIVER ?? 'local'
+  ).toLowerCase();
+  if (!['s3', 'minio', 'b2', 'backblaze'].includes(storageDriver)) {
+    app.useStaticAssets(join(process.cwd(), 'uploads'), {
+      prefix: '/media/',
+    });
+  }
 
   const apiPrefix = config.get<string>('apiPrefix', 'api/v1');
   app.setGlobalPrefix(apiPrefix);
@@ -69,12 +80,17 @@ async function bootstrap() {
     .addTag('Supporting Information', 'Applicant-facing supporting information on offerings')
     .addTag('General Criteria', 'Reusable admission criteria master records')
     .addTag('General Fees', 'Reusable programme fee master records')
+    .addTag('General Declarations', 'Reusable institution-wide declaration masters')
+    .addTag('Offering Declarations', 'Offering-specific declaration configuration')
     .addTag('Intake Review & Publication', 'Submit, review, publish, return, and close intakes')
-    .addTag('Applicant Admissions', 'Public published intake/offering reads and ADM-F001 handoff')
+    .addTag('Applicant Admissions', 'Public published intake/offering reads and application handoff')
+    .addTag('Applicant Registration', 'Applicant registration, verification, and password setup')
+    .addTag('Applicants Applications', 'Application completion steps, uploads, and submission')
     .addTag('Departments', 'Academic department master data')
     .addTag('Programmes', 'Programme master data')
     .addTag('Criteria Types', 'Criteria-type catalogue')
     .addTag('Fee Types', 'Fee-type catalogue')
+    .addTag('Declaration Types', 'Declaration-type catalogue')
     .addTag('Health', 'Service health')
     .build();
 

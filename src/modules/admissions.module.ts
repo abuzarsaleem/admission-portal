@@ -1,11 +1,16 @@
 import { Module } from '@nestjs/common';
 import { AdmissionCriteriaModule } from './admission-criteria/admission-criteria.module.js';
 import { ApplicantAdmissionsModule } from './applicant-admissions/applicant-admissions.module.js';
+import { ApplicantApplicationsModule } from './applicant-applications/applicant-applications.module.js';
+import { ApplicantRegistrationsModule } from './applicant-registrations/applicant-registrations.module.js';
 import { CriteriaTypesModule } from './criteria-types/criteria-types.module.js';
+import { DeclarationTypesModule } from './declaration-types/declaration-types.module.js';
 import { DepartmentsModule } from './departments/departments.module.js';
 import { FeeTypesModule } from './fee-types/fee-types.module.js';
 import { GeneralCriteriaModule } from './general-criteria/general-criteria.module.js';
+import { GeneralDeclarationsModule } from './general-declarations/general-declarations.module.js';
 import { IntakesModule } from './intakes/intakes.module.js';
+import { OfferingDeclarationsModule } from './offering-declarations/offering-declarations.module.js';
 import { OfferingFeesModule } from './offering-fees/offering-fees.module.js';
 import { ProgrammeFeesModule } from './programme-fees/programme-fees.module.js';
 import { ProgrammeOfferingsModule } from './programme-offerings/programme-offerings.module.js';
@@ -14,6 +19,7 @@ import { SupportingInformationModule } from './supporting-information/supporting
 
 /**
  * ADM-F000 domain aggregate — Intake & Offering Management.
+ * Also wires ADM-F001 registration and ADM-F002 application completion.
  */
 @Module({
   imports: [
@@ -21,28 +27,38 @@ import { SupportingInformationModule } from './supporting-information/supporting
     ProgrammesModule,
     CriteriaTypesModule,
     FeeTypesModule,
+    DeclarationTypesModule,
     IntakesModule,
     ProgrammeOfferingsModule,
     GeneralCriteriaModule,
     AdmissionCriteriaModule,
     ProgrammeFeesModule,
     OfferingFeesModule,
+    GeneralDeclarationsModule,
+    OfferingDeclarationsModule,
     SupportingInformationModule,
     ApplicantAdmissionsModule,
+    ApplicantRegistrationsModule,
+    ApplicantApplicationsModule,
   ],
   exports: [
     DepartmentsModule,
     ProgrammesModule,
     CriteriaTypesModule,
     FeeTypesModule,
+    DeclarationTypesModule,
     IntakesModule,
     ProgrammeOfferingsModule,
     GeneralCriteriaModule,
     AdmissionCriteriaModule,
     ProgrammeFeesModule,
     OfferingFeesModule,
+    GeneralDeclarationsModule,
+    OfferingDeclarationsModule,
     SupportingInformationModule,
     ApplicantAdmissionsModule,
+    ApplicantRegistrationsModule,
+    ApplicantApplicationsModule,
   ],
 })
 export class AdmissionsModule {}
