@@ -148,8 +148,18 @@ export class AdmissionCriteriaService {
       criteriaRequirement: item.criteriaRequirement!,
       criteriaOperator: item.criteriaOperator ?? null,
       criteriaUnit: item.criteriaUnit ?? null,
+      criteriaValue:
+        item.criteriaValue === undefined || item.criteriaValue === null
+          ? null
+          : String(item.criteriaValue),
+      criteriaValueMax:
+        item.criteriaValueMax === undefined || item.criteriaValueMax === null
+          ? null
+          : String(item.criteriaValueMax),
+      appliesToDegreeType: item.appliesToDegreeType ?? null,
       mandatory: item.mandatory ?? true,
     });
+    this.assertStructuredValues(general);
     return manager.save(general);
   }
 
@@ -187,7 +197,20 @@ export class AdmissionCriteriaService {
       general.criteriaOperator = dto.criteriaOperator;
     }
     if (dto.criteriaUnit !== undefined) general.criteriaUnit = dto.criteriaUnit;
+    if (dto.criteriaValue !== undefined) {
+      general.criteriaValue =
+        dto.criteriaValue === null ? null : String(dto.criteriaValue);
+    }
+    if (dto.criteriaValueMax !== undefined) {
+      general.criteriaValueMax =
+        dto.criteriaValueMax === null ? null : String(dto.criteriaValueMax);
+    }
+    if (dto.appliesToDegreeType !== undefined) {
+      general.appliesToDegreeType = dto.appliesToDegreeType;
+    }
     if (dto.mandatory !== undefined) general.mandatory = dto.mandatory;
+
+    this.assertStructuredValues(general);
 
     if (dto.sequenceNo !== undefined) criterion.sequenceNo = dto.sequenceNo;
     if (dto.effectiveFrom !== undefined) {
@@ -244,6 +267,29 @@ export class AdmissionCriteriaService {
     }
   }
 
+  private assertStructuredValues(entity: GeneralCriterionEntity): void {
+    const min = entity.criteriaValue != null ? Number(entity.criteriaValue) : null;
+    const max =
+      entity.criteriaValueMax != null ? Number(entity.criteriaValueMax) : null;
+    if (min != null && max != null && max < min) {
+      throw new BusinessException(
+        'criteriaValueMax must be greater than or equal to criteriaValue',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        'INVALID_CRITERIA_VALUE_RANGE',
+      );
+    }
+    if (
+      entity.criteriaOperator === CriteriaOperator.BETWEEN &&
+      (min == null || max == null)
+    ) {
+      throw new BusinessException(
+        'criteriaValue and criteriaValueMax are required when criteriaOperator is BETWEEN',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        'INVALID_CRITERIA_BETWEEN',
+      );
+    }
+  }
+
   private toResponse(
     criterion: AdmissionCriterionEntity,
     general: GeneralCriterionEntity,
@@ -258,6 +304,13 @@ export class AdmissionCriteriaService {
       criteriaRequirement: general.criteriaRequirement,
       criteriaOperator: (general.criteriaOperator as CriteriaOperator | null) ?? null,
       criteriaUnit: general.criteriaUnit,
+      criteriaValue:
+        general.criteriaValue != null ? Number(general.criteriaValue) : null,
+      criteriaValueMax:
+        general.criteriaValueMax != null
+          ? Number(general.criteriaValueMax)
+          : null,
+      appliesToDegreeType: general.appliesToDegreeType,
       mandatory: general.mandatory,
       sequenceNo: criterion.sequenceNo,
       effectiveFrom: criterion.effectiveFrom

@@ -1,0 +1,307 @@
+ADM-F001 — Applicant Registration & Application Initiation
+Implementation Specification v1.1 — Registration-Only Boundary
+Taleem AI CMS — Online Admissions Portal
+
+Attribute
+Value
+Feature ID
+ADM-F001
+Feature Name
+Applicant Registration & Application Initiation
+Version
+1.3
+Status
+Development Baseline — Sample Data Added
+Authoritative source
+ADM-F001 FSD v1.0
+Implementation direction
+Latest project decision: one physical application table; F001 remains registration-only
+Downstream
+ADM-F002 Application Completion & Submission
+
+1. Source-of-Truth and Revision Decisions
+ADM-F001 FSD v1.0 remains the source for registration validation, identity uniqueness, authentication, Applicant ID / Application ID / reference generation and registration notifications.
+The latest implementation decision changes the physical model from separate Applicant Account + Application entities to one application record. Registration identity and later application profile data are stored in the same row.
+ADM-F001 is intentionally limited to the registration/authentication flow. Programme selection, academic information, profile completion, declaration and submission belong to ADM-F002.
+ADM-F002 must update the existing ADM-F001 application record rather than creating a second personal/applicant record.
+The same business attribute must have one authoritative storage location. No duplicate applicant_name, email, CNIC/passport or mobile columns may be introduced in ADM-F002 tables.
+2. Final Feature Boundary
+ADM-F001 Boundary
+ADM-F001 — REGISTRATION FLOW ONLY└── 1. Published intake is available    └── 2. Applicant opens registration        └── 3. Capture registration identity            ├── Applicant name            ├── Registered email            ├── Password            ├── CNIC            └── Mobile number        └── 4. Validate registration            ├── Application window is open            ├── Email unique for intake            ├── CNIC/passport unique for intake            ├── Mobile format valid            └── Password meets security policy        └── 5. Create ONE application record            ├── Generate unique Applicant ID and unique Application ID            ├── Generate application reference            ├── Associate current intake            ├── Set account_status = ACTIVE            ├── Set application_status = REGISTERED            └── Set overall_completion = 0        └── 6. Registration notification            ├── WhatsApp primary            ├── Email            └── SMS        └── 7. Applicant sign-in            └── 8. Handoff to ADM-F002                └── Applicant completes Academic → Programme → Profile → Declaration
+3. Explicitly Out of Scope for ADM-F001
+Programme selection or programme preference storage.
+Department derivation.
+Academic history or academic document capture.
+Profile photograph upload.
+Personal-information completion beyond registration identity.
+Application address records.
+Parent/guardian/emergency contact records.
+Disability declaration and referral source.
+Declaration acceptance, disciplinary disclosure and test-centre selection.
+Application submission.
+Processing fee, document verification, eligibility, admission decision or enrolment.
+4. Single Physical Table
+Table
+Purpose
+admissions_applications
+Single authoritative record created during registration and enriched by ADM-F002. It replaces the separate Applicant Account + Application tables.
+
+4.1 admissions_applications — Final Columns
+Column
+Type
+Req.
+Meaning
+Sample Data
+applicant_id
+PK / Identifier
+Yes
+Unique applicant identifier; primary key.
+APL-0000123
+application_id
+Unique Business ID
+Yes
+Generated during ADM-F001 registration; globally unique and never reused.
+1000123
+application_reference
+String
+Yes
+Institutional reference derived from Application ID.
+NUKTA-1000123
+intake_session_id
+FK
+Yes
+Current published intake associated at registration; immutable.
+INT-2026-FALL-001
+applicant_name
+String
+Yes
+Registration name; may be refined during ADM-F002 Profile step.
+Muhammad Ahmed
+registered_email
+String
+Yes
+Login identifier; immutable from applicant UI.
+muhammad.ahmed@example.com
+cnic_number
+String
+Yes
+Identity document used for registration and duplicate prevention.
+35202-1234567-1
+passport_number
+String
+
+
+
+mobile_number
+String
+Yes
+Registration mobile; can be updated through ADM-F002 Profile step if business rules permit.
++92 300 1234567
+gender
+Enum
+No
+Captured in ADM-F002 Profile step; not duplicated elsewhere.
+MALE
+marital_status
+Enum
+No
+Captured in ADM-F002 Profile step.
+SINGLE
+date_of_birth
+Date
+No
+Captured in ADM-F002 Profile step.
+2006-05-14
+profile_photograph
+String / File Reference
+No
+Document-storage reference; captured in ADM-F002 Profile step.
+s3://admissions/profile/APL-0000123/profile.jpg
+primary_nationality_id
+FK
+No
+Country master reference; captured in ADM-F002 Profile step.
+PK
+secondary_nationality_id
+FK
+No
+Country master reference; optional.
+—
+disability_declared
+Boolean
+No
+Mandatory Profile-step declaration.
+FALSE
+referral_source
+Enum
+No
+Newspaper, Internet, Friends/Relatives, Institution Students, Other.
+INTERNET
+application_status
+Enum
+Yes
+REGISTERED initially; later values are managed by downstream admission features.
+REGISTERED
+overall_completion
+Integer
+Yes
+0 at registration; maintained by ADM-F002 after step completion.
+0
+registration_date
+DateTime
+Yes
+Account/application registration timestamp.
+2026-09-23T10:30:00+05:00
+applied_date
+DateTime
+No
+Set when the application completion process is initiated according to final workflow.
+—
+account_status
+Enum
+Yes
+ACTIVE / ARCHIVED.
+ACTIVE
+created_at
+DateTime
+Yes
+System timestamp.
+2026-09-23T10:30:00+05:00
+updated_at
+DateTime
+Yes
+System timestamp.
+2026-09-23T10:30:00+05:00
+
+4.2 Constraints and No-Duplication Rules
+UNIQUE (intake_session_id, normalized_registered_email).
+UNIQUE (intake_session_id, normalized_cnic_passport_number).
+application_id is a generated business identifier, globally unique and never reused; applicant_id is the stable internal primary key.
+application_reference is unique.
+ADM-F002 must reference admissions_applications.applicant_id and must not create another applicant/personal-information master.
+Registered email is displayed read-only and is not copied into any F002 child table.
+Applicant name, identity document number and mobile number have one authoritative copy in admissions_applications.
+Country/province/city are reference masters; application-specific addresses belong in the F002 application-address table, not in admissions_applications.
+5. Registration State
+Initial State
+admissions_applications└── registration    ├── application_status = REGISTERED    ├── overall_completion = 0    └── F002 completion data = not yet savedAfter F002 starts:REGISTERED└── ADM-F002    └── IN_PROGRESS        └── COMPLETE (SUBMITTED)            └── downstream admission states
+6. APIs
+API ownership rule: ADM-F001 defines only the registration endpoint. Existing platform/IAM authentication APIs and ADM-F000 published-intake/programme APIs are dependencies and must not be duplicated in this specification.
+Method
+Endpoint
+Purpose
+Owner / Boundary
+POST
+/api/v1/applicant/registrations
+Register a prospective applicant and initiate one admissions application for the selected published intake.
+ADM-F001
+API namespace rule. ADM-F001 uses the established applicant-facing namespace `/api/v1/applicant/`. The `/api/v1/admissions/...` namespace belongs to ADM-F000 administrative/configuration APIs and must not be introduced into ADM-F001. Downstream application-completion APIs remain under `/api/v1/applicant/applications/{applicant_id}/...` as defined by ADM-F002.
+Registration Request Contract
+Field
+Required
+Type
+Description
+intake_session_id
+Yes
+Identifier
+Published intake session for which the applicant is registering.
+applicant_name
+Yes
+String
+Applicant name captured during registration.
+registered_email
+Yes
+String
+Applicant email; unique for the intake.
+password
+Yes
+String
+Applicant password; validated against institutional security policy and hashed before storage.
+cnic_passport_number
+Yes
+String
+CNIC or passport number; unique for the intake.
+mobile_number
+Yes
+String
+Applicant mobile number in the accepted institutional format.
+Registration Response Contract
+Field
+Type
+Description
+applicant_id
+Identifier
+Generated unique Applicant ID.
+application_id
+Identifier
+Generated unique, non-reusable Application ID.
+application_reference
+String
+Institutional application reference derived from the Application ID.
+intake_session_id
+Identifier
+Published intake associated with the application.
+application_status
+Enum
+Initialized as REGISTERED.
+overall_completion
+Integer
+Initialized as 0.
+Registration API Validation Outcomes
+Condition
+HTTP Outcome
+Behavior
+Invalid/missing registration field
+400
+Return field-level validation errors; no application created.
+Email already registered for intake
+409
+Reject registration and direct applicant to sign in.
+CNIC/passport already registered for intake
+409
+Reject registration; no duplicate application created.
+Application window closed/not active
+409
+Reject registration; no application created.
+Not owned by ADM-F001. Login/session APIs are consumed from the existing IAM/authentication capability. Intake/programme catalogue APIs are consumed from ADM-F000. Academic, programme preference, profile, address, contact, declaration and submission APIs are owned by ADM-F002.
+
+
+
+
+
+
+
+7. Registration Validation Hierarchy
+Registration validation
+Registration request├── Published intake?│   └── No → reject; do not create record├── Application period open?│   └── No → reject├── Email already registered for intake?│   └── Yes → reject and direct applicant to sign in├── CNIC/passport already registered for intake?│   └── Yes → reject├── Required registration fields valid?│   └── No → return field errors└── All valid    └── Transaction        ├── generate Applicant ID and unique Application ID        ├── derive reference        ├── insert ONE admissions_applications row        └── dispatch notification asynchronously
+8. Registration Notification and Audit
+Registration confirmation contains Applicant ID, Application ID and application reference.
+WhatsApp is the primary channel; email and SMS are also dispatched according to the FSD.
+Notification failure must not create a second application record or roll back a successful registration unless a future business decision explicitly requires synchronous notification.
+Store channel, dispatch timestamp, delivery status and acting system identity for audit.
+9. Security and Authorization
+Password is stored only as a secure hash.
+Identity and credential fields are sensitive and must not be logged in plaintext.
+Applicant requests are scoped to the authenticated applicant_id.
+Cross-tenant or cross-application access is rejected without disclosure.
+Registered email remains immutable through applicant application APIs.
+10. ADM-F001 → ADM-F002 Handoff
+Handoff contract
+ADM-F001└── registration succeeds    ├── applicant_id    ├── application_reference    ├── intake_session_id    ├── registered_email    └── application_status = REGISTERED        ↓ADM-F002└── load existing admissions_applications row    └── complete:        1. Academic Information + Documents        2. Programme Selection        3. Profile + Addresses + Contacts        4. Declaration + Submission
+11. Implementation Checklist
+☐ Remove separate Applicant Account physical table from the admissions module.
+☐ Create one admissions_applications table.
+☐ Move registration identity and application shell fields into that table.
+☐ Do not create duplicate applicant/personal-information table in ADM-F002.
+☐ Keep F001-owned APIs limited to registration. Authentication is consumed from the existing IAM/authentication capability; ADM-F000 applicant catalogue APIs are consumed as upstream dependencies.
+☐ Enforce intake-scoped email and identity uniqueness.
+☐ Generate Applicant ID / Application ID / reference atomically.
+☐ Add integration tests proving F002 reads and updates the same application row.
+☐ Add security tests for cross-application access.
+☐ Verify downstream features use applicant_id as the stable key.
+12. Source Traceability
+ADM-F001 FSD v1.0: registration fields, uniqueness, Applicant ID / Application ID / reference, notifications, authentication and registration boundary. fileciteturn8file4
+ADM-F001 FSD v1.0: current logical model originally separated Applicant Account and Application; this implementation revision intentionally consolidates them into one physical table per latest project direction. fileciteturn9file0
+ADM-F002 FSD v1.0: personal fields such as name/mobile/identity are now mapped into the shared admissions_applications row to prevent duplication. fileciteturn10file4
+API non-duplication rule. The admissions module must reuse existing authentication/session endpoints and ADM-F000 published offering endpoints. ADM-F001 must not introduce duplicate login, logout, forgot-password, intake, programme, criteria, fee, or application-hub endpoints. ADM-F001 ends after successful registration and handoff to ADM-F002.
+Sample data note. Values are illustrative. IDs/references must be generated by the project's identifier strategy. The password_hash is a placeholder and must never contain plaintext credentials.

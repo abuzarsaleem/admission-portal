@@ -118,9 +118,11 @@ export class AdmissionCriteriaController {
             {
               criteriaTypeId: '22222222-2222-4222-8222-222222222002',
               criteriaName: 'Minimum Percentage',
-              criteriaRequirement: 'Minimum 50% overall marks',
+              criteriaRequirement: 'Minimum 65% marks in FSC',
               criteriaOperator: 'GREATER_THAN_OR_EQUAL',
               criteriaUnit: 'PERCENTAGE',
+              criteriaValue: 65,
+              appliesToDegreeType: 'FSC',
               mandatory: true,
               sequenceNo: 1,
             },

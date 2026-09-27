@@ -31,6 +31,7 @@ import { ParseUuidPipe } from '../../common/pipes/parse-uuid.pipe.js';
 import { ApplicantAdmissionsService } from './applicant-admissions.service.js';
 import {
   ApplicantCriterionDto,
+  ApplicantDeclarationDto,
   ApplicantFeeDto,
   ApplicantIntakeDto,
   ApplicantIntakeListDto,
@@ -48,6 +49,7 @@ import {
   ApplicantOfferingListDto,
   ApplicantCriterionDto,
   ApplicantFeeDto,
+  ApplicantDeclarationDto,
   StartApplicationResponseDto,
   ApiErrorResponseDto,
 )
@@ -149,6 +151,25 @@ export class ApplicantAdmissionsController {
     @Param('offeringId', new ParseUuidPipe('offeringId')) offeringId: string,
   ): Promise<ApplicantFeeDto[]> {
     return this.applicantAdmissionsService.getFees(
+      this.publicContext(),
+      offeringId,
+    );
+  }
+
+  @Public()
+  @Get('offerings/:offeringId/declarations')
+  @ApiOperation({
+    summary: 'Get offering declaration / terms texts',
+    description:
+      'Public browse of ACTIVE, currently effective offering declarations for display before registration. ' +
+      'Acceptance still happens later via authenticated applicants/applications/.../declaration.',
+  })
+  @ApiParam({ name: 'offeringId', description: 'Offering UUID' })
+  @ApiWrappedOkArrayResponse(ApplicantDeclarationDto, 'Declarations')
+  getDeclarations(
+    @Param('offeringId', new ParseUuidPipe('offeringId')) offeringId: string,
+  ): Promise<ApplicantDeclarationDto[]> {
+    return this.applicantAdmissionsService.getDeclarations(
       this.publicContext(),
       offeringId,
     );

@@ -10,6 +10,7 @@ import {
   IsEnum,
   IsInt,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -18,6 +19,7 @@ import {
   Min,
   MinLength,
   Validate,
+  ValidateIf,
 } from 'class-validator';
 import { PaginationMetaDto } from '../../../common/dto/api-response.dto.js';
 import { CriteriaOperator } from '../../../common/enums/criteria-operator.enum.js';
@@ -31,6 +33,16 @@ const toIdString = ({ value }: { value: unknown }) => {
     return String(Math.trunc(value));
   }
   if (typeof value === 'string') return value.trim();
+  return value;
+};
+
+const toNumberOrNull = ({ value }: { value: unknown }) => {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : value;
+  }
   return value;
 };
 
@@ -57,7 +69,7 @@ export class CreateGeneralCriterionDto {
 
   @ApiProperty({
     description: 'Applicant-facing requirement/value',
-    example: 'Minimum 50% overall marks',
+    example: 'Minimum 65% marks in FSC',
     minLength: 2,
     maxLength: 2000,
   })
@@ -91,6 +103,44 @@ export class CreateGeneralCriterionDto {
   criteriaUnit?: string | null;
 
   @ApiPropertyOptional({
+    description:
+      'Numeric threshold for eligibility evaluation (e.g. 65 for MIN_PERCENTAGE). Null = display-only.',
+    example: 65,
+    nullable: true,
+  })
+  @IsOptional()
+  @Transform(toNumberOrNull)
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  criteriaValue?: number | null;
+
+  @ApiPropertyOptional({
+    description: 'Upper bound when criteriaOperator is BETWEEN',
+    example: 80,
+    nullable: true,
+  })
+  @IsOptional()
+  @Transform(toNumberOrNull)
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  criteriaValueMax?: number | null;
+
+  @ApiPropertyOptional({
+    description:
+      'Academic degree_type this rule applies to (e.g. FSC). Null = use highest overall percentage.',
+    example: 'FSC',
+    maxLength: 80,
+    nullable: true,
+  })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @MaxLength(80)
+  appliesToDegreeType?: string | null;
+
+  @ApiPropertyOptional({
     description: 'Whether criterion is mandatory (default true)',
     example: true,
     default: true,
@@ -114,7 +164,7 @@ export class UpdateGeneralCriterionDto {
   criteriaName?: string | null;
 
   @ApiPropertyOptional({
-    example: 'Minimum 60% overall marks',
+    example: 'Minimum 65% marks in FSC',
     minLength: 2,
     maxLength: 2000,
   })
@@ -143,6 +193,42 @@ export class UpdateGeneralCriterionDto {
   @MaxLength(30)
   criteriaUnit?: string | null;
 
+  @ApiPropertyOptional({
+    description: 'Numeric threshold for eligibility evaluation',
+    example: 65,
+    nullable: true,
+  })
+  @IsOptional()
+  @Transform(toNumberOrNull)
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  criteriaValue?: number | null;
+
+  @ApiPropertyOptional({
+    description: 'Upper bound when criteriaOperator is BETWEEN',
+    example: 80,
+    nullable: true,
+  })
+  @IsOptional()
+  @Transform(toNumberOrNull)
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  criteriaValueMax?: number | null;
+
+  @ApiPropertyOptional({
+    description: 'Academic degree_type this rule applies to (e.g. FSC)',
+    example: 'FSC',
+    maxLength: 80,
+    nullable: true,
+  })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @MaxLength(80)
+  appliesToDegreeType?: string | null;
+
   @ApiPropertyOptional({ example: true })
   @IsOptional()
   @Type(() => Boolean)
@@ -158,11 +244,14 @@ export class UpdateGeneralCriterionDto {
       'criteriaRequirement',
       'criteriaOperator',
       'criteriaUnit',
+      'criteriaValue',
+      'criteriaValueMax',
+      'appliesToDegreeType',
       'mandatory',
     ],
     {
       message:
-        'At least one of criteriaName, criteriaRequirement, criteriaOperator, criteriaUnit, or mandatory is required',
+        'At least one of criteriaName, criteriaRequirement, criteriaOperator, criteriaUnit, criteriaValue, criteriaValueMax, appliesToDegreeType, or mandatory is required',
     },
   )
   private readonly _atLeastOne = true;
@@ -218,7 +307,7 @@ export class GeneralCriterionResponseDto {
   @ApiPropertyOptional({ nullable: true, example: 'Minimum Percentage' })
   criteriaName!: string | null;
 
-  @ApiProperty({ example: 'Minimum 50% overall marks' })
+  @ApiProperty({ example: 'Minimum 65% marks in FSC' })
   criteriaRequirement!: string;
 
   @ApiPropertyOptional({ enum: CriteriaOperator, nullable: true })
@@ -226,6 +315,15 @@ export class GeneralCriterionResponseDto {
 
   @ApiPropertyOptional({ nullable: true, example: 'PERCENTAGE' })
   criteriaUnit!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, example: 65 })
+  criteriaValue!: number | null;
+
+  @ApiPropertyOptional({ nullable: true, example: 80 })
+  criteriaValueMax!: number | null;
+
+  @ApiPropertyOptional({ nullable: true, example: 'FSC' })
+  appliesToDegreeType!: string | null;
 
   @ApiProperty({ example: true })
   mandatory!: boolean;

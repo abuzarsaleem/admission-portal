@@ -128,6 +128,15 @@ export class ApplicantCriterionDto {
   @ApiPropertyOptional({ nullable: true })
   criteriaUnit!: string | null;
 
+  @ApiPropertyOptional({ nullable: true, example: 65 })
+  criteriaValue!: number | null;
+
+  @ApiPropertyOptional({ nullable: true, example: 80 })
+  criteriaValueMax!: number | null;
+
+  @ApiPropertyOptional({ nullable: true, example: 'FSC' })
+  appliesToDegreeType!: string | null;
+
   @ApiProperty()
   mandatory!: boolean;
 
@@ -156,6 +165,29 @@ export class ApplicantFeeDto {
 
   @ApiPropertyOptional({ nullable: true })
   sortOrder!: number | null;
+}
+
+export class ApplicantDeclarationDto {
+  @ApiProperty({ description: 'Offering declaration UUID' })
+  id!: string;
+
+  @ApiProperty()
+  programmeOfferingId!: string;
+
+  @ApiProperty()
+  declarationTypeId!: string;
+
+  @ApiProperty({ description: 'Declaration / terms text shown to the applicant' })
+  declarationText!: string;
+
+  @ApiProperty({ example: 'DECL-1.0' })
+  version!: string;
+
+  @ApiProperty()
+  effectiveFrom!: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  effectiveTo!: string | null;
 }
 
 export class StartApplicationResponseDto {

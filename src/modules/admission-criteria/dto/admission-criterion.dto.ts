@@ -14,6 +14,7 @@ import {
   IsEnum,
   IsInt,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -148,6 +149,69 @@ export class CreateAdmissionCriterionItemDto {
   @IsString()
   @MaxLength(30)
   criteriaUnit?: string | null;
+
+  @ApiPropertyOptional({
+    description:
+      'Option B: numeric threshold for eligibility (e.g. 65). Null = display-only.',
+    example: 65,
+    nullable: true,
+  })
+  @ValidateIf((o: CreateAdmissionCriterionItemDto) => !o.generalCriteriaId)
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string' && value.trim() !== '') {
+      const n = Number(value);
+      return Number.isFinite(n) ? n : value;
+    }
+    return value;
+  })
+  @ValidateIf(
+    (o: CreateAdmissionCriterionItemDto, v) =>
+      !o.generalCriteriaId && v !== null && v !== undefined,
+  )
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  criteriaValue?: number | null;
+
+  @ApiPropertyOptional({
+    description: 'Option B: upper bound when criteriaOperator is BETWEEN',
+    example: 80,
+    nullable: true,
+  })
+  @ValidateIf((o: CreateAdmissionCriterionItemDto) => !o.generalCriteriaId)
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string' && value.trim() !== '') {
+      const n = Number(value);
+      return Number.isFinite(n) ? n : value;
+    }
+    return value;
+  })
+  @ValidateIf(
+    (o: CreateAdmissionCriterionItemDto, v) =>
+      !o.generalCriteriaId && v !== null && v !== undefined,
+  )
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  criteriaValueMax?: number | null;
+
+  @ApiPropertyOptional({
+    description:
+      'Option B: academic degree_type this rule applies to (e.g. FSC)',
+    example: 'FSC',
+    maxLength: 80,
+    nullable: true,
+  })
+  @ValidateIf((o: CreateAdmissionCriterionItemDto) => !o.generalCriteriaId)
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @MaxLength(80)
+  appliesToDegreeType?: string | null;
 
   @ApiPropertyOptional({
     description: 'Option B: whether criterion is mandatory (default true)',
@@ -285,6 +349,58 @@ export class UpdateAdmissionCriterionDto {
   @MaxLength(30)
   criteriaUnit?: string | null;
 
+  @ApiPropertyOptional({
+    description: 'Numeric threshold for eligibility evaluation',
+    example: 65,
+    nullable: true,
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string' && value.trim() !== '') {
+      const n = Number(value);
+      return Number.isFinite(n) ? n : value;
+    }
+    return value;
+  })
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  criteriaValue?: number | null;
+
+  @ApiPropertyOptional({
+    description: 'Upper bound when criteriaOperator is BETWEEN',
+    example: 80,
+    nullable: true,
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string' && value.trim() !== '') {
+      const n = Number(value);
+      return Number.isFinite(n) ? n : value;
+    }
+    return value;
+  })
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  criteriaValueMax?: number | null;
+
+  @ApiPropertyOptional({
+    description: 'Academic degree_type this rule applies to (e.g. FSC)',
+    example: 'FSC',
+    maxLength: 80,
+    nullable: true,
+  })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @MaxLength(80)
+  appliesToDegreeType?: string | null;
+
   @ApiPropertyOptional({ example: true })
   @IsOptional()
   @Type(() => Boolean)
@@ -333,6 +449,9 @@ export class UpdateAdmissionCriterionDto {
       'criteriaRequirement',
       'criteriaOperator',
       'criteriaUnit',
+      'criteriaValue',
+      'criteriaValueMax',
+      'appliesToDegreeType',
       'mandatory',
       'sequenceNo',
       'effectiveFrom',
@@ -340,7 +459,7 @@ export class UpdateAdmissionCriterionDto {
     ],
     {
       message:
-        'At least one updatable field is required (criteriaName, criteriaRequirement, criteriaOperator, criteriaUnit, mandatory, sequenceNo, effectiveFrom, effectiveTo)',
+        'At least one updatable field is required (criteriaName, criteriaRequirement, criteriaOperator, criteriaUnit, criteriaValue, criteriaValueMax, appliesToDegreeType, mandatory, sequenceNo, effectiveFrom, effectiveTo)',
     },
   )
   private readonly _atLeastOne = true;
@@ -376,6 +495,15 @@ export class AdmissionCriterionResponseDto {
 
   @ApiPropertyOptional({ nullable: true, example: 'PERCENTAGE' })
   criteriaUnit!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, example: 65 })
+  criteriaValue!: number | null;
+
+  @ApiPropertyOptional({ nullable: true, example: 80 })
+  criteriaValueMax!: number | null;
+
+  @ApiPropertyOptional({ nullable: true, example: 'FSC' })
+  appliesToDegreeType!: string | null;
 
   @ApiProperty({ example: true })
   mandatory!: boolean;
