@@ -5,6 +5,8 @@ export type AuthUser = {
   tenantId: string
   roles: string[]
   accessToken: string
+  /** Last known applications.id for this applicant (from register / set-password). */
+  applicantId?: string
 }
 
 const STORAGE_KEY = 'taleem_applicant_auth_session'

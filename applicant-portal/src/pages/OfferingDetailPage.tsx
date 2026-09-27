@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Loader2 } from 'lucide-react'
-import { ApplyNowButton } from '@/components/admissions/ApplyNowButton'
+import { ApplyOrContinueButton } from '@/components/admissions/ApplyOrContinueButton'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -76,11 +76,14 @@ export function OfferingDetailPage() {
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
       <button
         type="button"
-        onClick={() => navigate(-1)}
+        onClick={() => {
+          if (intake) navigate(`/intakes/${intake.id}`)
+          else navigate(-1)
+        }}
         className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-[#0c3cff] hover:underline"
       >
         <ArrowLeft className="h-4 w-4" />
-        Back to home
+        Back to intake
       </button>
 
       {loading ? (
@@ -126,7 +129,9 @@ export function OfferingDetailPage() {
                 ) : null}
               </div>
             </div>
-            <ApplyNowButton />
+            {intake ? (
+              <ApplyOrContinueButton intakeId={intake.id} offeringId={offering.id} />
+            ) : null}
           </header>
 
           <div className="space-y-8 px-5 py-6 sm:px-6">
@@ -201,10 +206,16 @@ export function OfferingDetailPage() {
                 <div>
                   <p className="font-semibold text-[#071759]">Ready to apply?</p>
                   <p className="mt-0.5 text-sm text-[#354a8d]">
-                    Online applications will be available soon.
+                    Start a new application, or continue your existing one.
                   </p>
                 </div>
-                <ApplyNowButton size="sm" />
+                {intake ? (
+                  <ApplyOrContinueButton
+                    intakeId={intake.id}
+                    offeringId={offering.id}
+                    size="sm"
+                  />
+                ) : null}
               </div>
             </div>
           </div>

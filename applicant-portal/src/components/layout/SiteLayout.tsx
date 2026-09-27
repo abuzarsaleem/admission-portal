@@ -3,7 +3,7 @@ import { SiteHeader } from '@/components/layout/SiteHeader'
 
 export function SiteLayout() {
   return (
-    <div className="min-h-screen bg-[#f8fafc]">
+    <div className="min-h-screen bg-white">
       <SiteHeader />
       <Outlet />
     </div>

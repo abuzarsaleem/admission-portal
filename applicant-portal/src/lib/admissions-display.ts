@@ -71,3 +71,46 @@ export function degreeLevelLabel(level: string) {
   if (normalized.includes('doctor')) return 'Doctorate'
   return level
 }
+
+export function inferIntakeSeason(intakeName: string, intakeCode: string) {
+  const source = `${intakeName} ${intakeCode}`.toLowerCase()
+  if (source.includes('fall') || source.includes('autumn')) return 'Fall'
+  if (source.includes('spring')) return 'Spring'
+  if (source.includes('summer')) return 'Summer'
+  if (source.includes('winter')) return 'Winter'
+  return 'General'
+}
+
+export function normalizeMobileNumber(raw: string, countryCode = '+92') {
+  const digits = raw.replace(/\D/g, '')
+  if (raw.trim().startsWith('+') && digits.length >= 10) return `+${digits}`
+  if (digits.startsWith('92') && digits.length >= 12) return `+${digits}`
+  if (digits.startsWith('0') && digits.length >= 11) return `${countryCode}${digits.slice(1)}`
+  if (digits.length === 10) return `${countryCode}${digits}`
+  return raw.trim()
+}
+
+export function looksLikeCnic(value: string) {
+  return /^\d{5}-\d{7}-\d$/.test(value.trim()) || /^\d{13}$/.test(value.replace(/-/g, ''))
+}
+
+export function formatCnic(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 13)
+  if (digits.length <= 5) return digits
+  if (digits.length <= 12) return `${digits.slice(0, 5)}-${digits.slice(5)}`
+  return `${digits.slice(0, 5)}-${digits.slice(5, 12)}-${digits.slice(12)}`
+}
+
+const CAMPUS_IMAGES = [
+  'https://images.unsplash.com/photo-1562774053-701939374585?auto=format&fit=crop&w=800&q=80',
+  'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&w=800&q=80',
+  'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=800&q=80',
+  'https://images.unsplash.com/photo-1498243691581-b145c3f54a5a?auto=format&fit=crop&w=800&q=80',
+]
+
+export function campusImageForId(id: string) {
+  let hash = 0
+  for (let i = 0; i < id.length; i += 1) hash = (hash + id.charCodeAt(i) * (i + 1)) % CAMPUS_IMAGES.length
+  return CAMPUS_IMAGES[hash]
+}
+

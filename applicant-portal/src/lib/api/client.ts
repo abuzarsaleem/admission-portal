@@ -5,12 +5,14 @@ import type { ApiErrorResponse, ApiSuccessResponse } from '@/lib/api/types'
 export class ApiError extends Error {
   statusCode: number
   code: string
+  details: unknown
 
-  constructor(message: string, statusCode: number, code: string) {
+  constructor(message: string, statusCode: number, code: string, details?: unknown) {
     super(message)
     this.name = 'ApiError'
     this.statusCode = statusCode
     this.code = code
+    this.details = details
   }
 }
 
@@ -53,6 +55,7 @@ export async function apiRequest<T>(
       error ? formatErrorMessage(error.message) : 'Request failed. Please try again.',
       error?.statusCode ?? response.status,
       error?.code ?? 'REQUEST_FAILED',
+      payload,
     )
   }
 
@@ -131,4 +134,42 @@ export async function apiDelete<TResponse = void>(
     method: 'DELETE',
     auth: options.auth ?? true,
   })
+}
+
+/** Multipart upload — do not set Content-Type so the browser can attach the boundary. */
+export async function apiUpload<TResponse>(
+  path: string,
+  formData: FormData,
+  options: Omit<RequestInit, 'body' | 'method'> & { auth?: boolean } = {},
+) {
+  const { auth = true, headers, ...rest } = options
+  const requestHeaders = new Headers(headers)
+
+  if (auth) {
+    const token = getAccessToken()
+    if (token) {
+      requestHeaders.set('Authorization', `Bearer ${token}`)
+    }
+  }
+
+  const response = await fetch(buildUrl(path), {
+    ...rest,
+    method: 'POST',
+    body: formData,
+    headers: requestHeaders,
+  })
+
+  const payload = await response.json().catch(() => null)
+
+  if (!response.ok) {
+    const error = payload as ApiErrorResponse | null
+    throw new ApiError(
+      error ? formatErrorMessage(error.message) : 'Upload failed. Please try again.',
+      error?.statusCode ?? response.status,
+      error?.code ?? 'UPLOAD_FAILED',
+      payload,
+    )
+  }
+
+  return payload as ApiSuccessResponse<TResponse>
 }
