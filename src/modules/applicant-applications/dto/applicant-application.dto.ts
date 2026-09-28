@@ -763,16 +763,16 @@ export class CreateDeclarationDto {
   @IsBoolean()
   declarationAccepted!: boolean;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     type: [String],
     description:
-      'IDs of ACTIVE offering_declarations for the selected programme offerings that the applicant accepts',
+      'IDs of ACTIVE offering_declarations for the selected programme offerings that the applicant accepts. May be empty when no offering declarations apply.',
     example: ['cccccccc-cccc-4ccc-8ccc-ccccccccccc1'],
   })
+  @IsOptional()
   @IsArray()
-  @ArrayMinSize(1)
   @IsUUID('4', { each: true })
-  acceptedOfferingDeclarationIds!: string[];
+  acceptedOfferingDeclarationIds?: string[];
 
   @ApiProperty()
   @IsBoolean()

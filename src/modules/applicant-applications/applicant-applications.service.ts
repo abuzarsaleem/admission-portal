@@ -838,14 +838,22 @@ export class ApplicantApplicationsService {
         'DISCIPLINARY_DETAILS_REQUIRED',
       );
     }
+    const activeOfferingDeclarations = await this.loadActiveOfferingDeclarations(
+      app.tenantId,
+      applicantId,
+    );
+    const acceptedOfferingDeclarationIds = new Set(
+      declaration.acceptedOfferingDeclarationIds ?? [],
+    );
     if (
-      !declaration.declarationAccepted ||
-      !declaration.acceptedOfferingDeclarationIds?.length
+      activeOfferingDeclarations.some(
+        (item) => !acceptedOfferingDeclarationIds.has(item.id),
+      )
     ) {
       throw new BusinessException(
-        'Offering declarations must be accepted before submission',
+        'All active offering declarations must be accepted before submission',
         HttpStatus.UNPROCESSABLE_ENTITY,
-        'DECLARATION_NOT_ACCEPTED',
+        'OFFERING_DECLARATIONS_INCOMPLETE',
       );
     }
 
@@ -987,8 +995,9 @@ export class ApplicantApplicationsService {
       app.tenantId,
       applicantId,
     );
+    const acceptedIds = dto.acceptedOfferingDeclarationIds ?? [];
     const versionLabel = required
-      .filter((r) => dto.acceptedOfferingDeclarationIds.includes(r.id))
+      .filter((r) => acceptedIds.includes(r.id))
       .map((r) => r.version)
       .join(',');
 
@@ -1001,7 +1010,7 @@ export class ApplicantApplicationsService {
     row.declarationAccepted = dto.declarationAccepted;
     row.declarationAcceptanceDate = dto.declarationAccepted ? now : null;
     row.declarationVersion = versionLabel || null;
-    row.acceptedOfferingDeclarationIds = dto.acceptedOfferingDeclarationIds;
+    row.acceptedOfferingDeclarationIds = acceptedIds;
     row.disciplinaryIssueDeclared = dto.disciplinaryIssueDeclared;
     row.disciplinaryIssueDetails = dto.disciplinaryIssueDeclared
       ? (dto.disciplinaryIssueDetails ?? null)
@@ -1257,15 +1266,8 @@ export class ApplicantApplicationsService {
       app.tenantId,
       applicantId,
     );
-    if (required.length === 0) {
-      throw new BusinessException(
-        'No ACTIVE offering declarations found for selected programmes',
-        HttpStatus.UNPROCESSABLE_ENTITY,
-        'OFFERING_DECLARATIONS_MISSING',
-      );
-    }
     const requiredIds = new Set(required.map((r) => r.id));
-    const accepted = new Set(dto.acceptedOfferingDeclarationIds);
+    const accepted = new Set(dto.acceptedOfferingDeclarationIds ?? []);
     for (const id of requiredIds) {
       if (!accepted.has(id)) {
         throw new BusinessException(
