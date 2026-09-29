@@ -16,6 +16,9 @@ import { ProgrammeFeesModule } from './programme-fees/programme-fees.module.js';
 import { ProgrammeOfferingsModule } from './programme-offerings/programme-offerings.module.js';
 import { ProgrammesModule } from './programmes/programmes.module.js';
 import { SupportingInformationModule } from './supporting-information/supporting-information.module.js';
+import { ProcessingFeeModule } from './processing-fee/processing-fee.module.js';
+import { AdmissionDocumentsModule } from './admission-documents/admission-documents.module.js';
+import { ApplicationReviewModule } from './application-review/application-review.module.js';
 
 /**
  * ADM-F000 domain aggregate — Intake & Offering Management.
@@ -40,6 +43,9 @@ import { SupportingInformationModule } from './supporting-information/supporting
     ApplicantAdmissionsModule,
     ApplicantRegistrationsModule,
     ApplicantApplicationsModule,
+    ProcessingFeeModule,
+    AdmissionDocumentsModule,
+    ApplicationReviewModule,
   ],
   exports: [
     DepartmentsModule,
@@ -59,6 +65,9 @@ import { SupportingInformationModule } from './supporting-information/supporting
     ApplicantAdmissionsModule,
     ApplicantRegistrationsModule,
     ApplicantApplicationsModule,
+    ProcessingFeeModule,
+    AdmissionDocumentsModule,
+    ApplicationReviewModule,
   ],
 })
 export class AdmissionsModule {}

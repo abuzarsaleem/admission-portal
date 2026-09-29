@@ -518,7 +518,8 @@ export class ApplicantApplicationsController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Submit completed application',
-    description: 'Requires academic → programme → profile → declaration steps saved. Blocks submit if mandatory structured offering criteria (criteriaValue) are not met by academic marks.',
+    description:
+      'Requires academic, programme and profile steps to be complete. If selected programmes have active offering declarations, the applicant must save the declaration step and accept all of them. When no active offering declarations apply, that step may be omitted. Blocks submission if mandatory structured offering criteria (criteriaValue) are not met by academic marks.',
   })
   @ApiWrappedOkResponse(SubmitApplicationResponseDto, 'Application submitted')
   submit(

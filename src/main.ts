@@ -19,9 +19,7 @@ async function bootstrap() {
     credentials: true,
   });
 
-  const storageDriver = (
-    process.env.STORAGE_DRIVER ?? 'local'
-  ).toLowerCase();
+  const storageDriver = (process.env.STORAGE_DRIVER ?? 'local').toLowerCase();
   if (!['s3', 'minio', 'b2', 'backblaze'].includes(storageDriver)) {
     app.useStaticAssets(join(process.cwd(), 'uploads'), {
       prefix: '/media/',
@@ -40,10 +38,7 @@ async function bootstrap() {
       stopAtFirstError: false,
       validationError: { target: false, value: false },
       exceptionFactory: (errors) => {
-        const collect = (
-          list: typeof errors,
-          prefix = '',
-        ): string[] =>
+        const collect = (list: typeof errors, prefix = ''): string[] =>
           list.flatMap((error) => {
             const path = prefix
               ? `${prefix}.${error.property}`
@@ -71,10 +66,10 @@ async function bootstrap() {
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Admission Portal API')
     .setDescription(
-      'ADM-F000 Admissions Intake & Offering Management APIs. ' +
+      'ADM-F000 Admissions Intake & Offering Management, ADM-F001 applicant registration, ADM-F002 application completion, and ADM-F003 processing-fee payment APIs. ' +
         'Admin endpoints require `Authorization: Bearer <OAuth access token>` from `POST /auth/login`. ' +
         'Tenant is always `DEFAULT_TENANT_ID`; user id comes from the JWT `sub` claim. ' +
-        'Applicant read endpoints are public (published data for DEFAULT_TENANT_ID).',
+        'Applicant admissions catalogue reads are public. Applicant application and payment routes require the applicant JWT and enforce application ownership.',
     )
     .setVersion('1.0.0')
     .addBearerAuth(
@@ -84,17 +79,53 @@ async function bootstrap() {
     .addTag('Auth', 'IAM login bridge (password → OAuth JWT)')
     .addTag('Intake', 'Intake session configuration and application windows')
     .addTag('Programme Offering', 'Programme offerings within an intake')
-    .addTag('Admission Criteria', 'Applicant-facing admission criteria on offerings')
+    .addTag(
+      'Admission Criteria',
+      'Applicant-facing admission criteria on offerings',
+    )
     .addTag('Fee Configuration', 'Offering fee configuration')
-    .addTag('Supporting Information', 'Applicant-facing supporting information on offerings')
+    .addTag(
+      'Supporting Information',
+      'Applicant-facing supporting information on offerings',
+    )
     .addTag('General Criteria', 'Reusable admission criteria master records')
     .addTag('General Fees', 'Reusable programme fee master records')
-    .addTag('General Declarations', 'Reusable institution-wide declaration masters')
-    .addTag('Offering Declarations', 'Offering-specific declaration configuration')
-    .addTag('Intake Review & Publication', 'Submit, review, publish, return, and close intakes')
-    .addTag('Applicant Admissions', 'Public published intake/offering reads and application handoff')
-    .addTag('Applicant Registration', 'Applicant registration, verification, and password setup')
-    .addTag('Applicants Applications', 'Application completion steps, uploads, and submission')
+    .addTag(
+      'General Declarations',
+      'Reusable institution-wide declaration masters',
+    )
+    .addTag(
+      'Offering Declarations',
+      'Offering-specific declaration configuration',
+    )
+    .addTag(
+      'Intake Review & Publication',
+      'Submit, review, publish, return, and close intakes',
+    )
+    .addTag(
+      'Applicant Admissions',
+      'Public published intake/offering reads and application handoff',
+    )
+    .addTag(
+      'Applicant Registration',
+      'Applicant registration, verification, and password setup',
+    )
+    .addTag(
+      'Applicants Applications',
+      'Application completion steps, uploads, and submission',
+    )
+    .addTag(
+      'Applicant Processing Fee',
+      'Applicant processing-fee challan, evidence and online payment APIs',
+    )
+    .addTag(
+      'Processing Fee Administration',
+      'Admissions payment verification and designated-bank configuration',
+    )
+    .addTag(
+      'Bank Reconciliation',
+      'Bank CSV imports, payment matching and exception resolution',
+    )
     .addTag('Departments', 'Academic department master data')
     .addTag('Programmes', 'Programme master data')
     .addTag('Criteria Types', 'Criteria-type catalogue')

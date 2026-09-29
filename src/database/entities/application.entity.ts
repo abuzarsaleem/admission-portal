@@ -9,6 +9,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { IntakeEntity } from './intake.entity.js';
+import { ProcessingFeeStatus } from '../../common/enums/processing-fee.enum.js';
 
 @Entity({ name: 'applications' })
 export class ApplicationEntity {
@@ -113,6 +114,27 @@ export class ApplicationEntity {
   @Index()
   @Column({ type: 'varchar', length: 30, name: 'application_status' })
   applicationStatus!: string;
+
+  @Column({ type: 'text', name: 'rejection_reason', nullable: true })
+  rejectionReason!: string | null;
+
+  @Column({ type: 'varchar', length: 60, name: 'rejection_reason_code', nullable: true })
+  rejectionReasonCode!: string | null;
+
+  @Column({ type: 'uuid', name: 'status_updated_by', nullable: true })
+  statusUpdatedBy!: string | null;
+
+  @Column({ type: 'timestamptz', name: 'status_updated_at', nullable: true })
+  statusUpdatedAt!: Date | null;
+
+  @Index()
+  @Column({
+    type: 'varchar',
+    length: 40,
+    name: 'processing_fee_status',
+    default: ProcessingFeeStatus.UNPAID,
+  })
+  processingFeeStatus!: ProcessingFeeStatus;
 
   @Column({ type: 'int', name: 'overall_completion', default: 0 })
   overallCompletion!: number;

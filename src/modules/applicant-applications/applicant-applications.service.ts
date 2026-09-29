@@ -803,7 +803,13 @@ export class ApplicantApplicationsService {
     const app = await this.requireOwnedEditable(user, applicantId);
     this.assertPriorStepsComplete(app);
 
-    if (!app.declarationStepSaved) {
+    const activeOfferingDeclarations = await this.loadActiveOfferingDeclarations(
+      app.tenantId,
+      applicantId,
+    );
+    const requiresDeclarationAcceptance = activeOfferingDeclarations.length > 0;
+
+    if (requiresDeclarationAcceptance && !app.declarationStepSaved) {
       throw new BusinessException(
         'Declaration step must be saved before submission',
         HttpStatus.UNPROCESSABLE_ENTITY,
@@ -814,14 +820,14 @@ export class ApplicantApplicationsService {
     const declaration = await this.declarationsRepo.findOne({
       where: { applicantId, tenantId: app.tenantId },
     });
-    if (!declaration) {
+    if (requiresDeclarationAcceptance && !declaration) {
       throw new BusinessException(
         'Declaration record is required',
         HttpStatus.UNPROCESSABLE_ENTITY,
         'DECLARATION_REQUIRED',
       );
     }
-    if (!declaration.declarationAccepted) {
+    if (declaration && !declaration.declarationAccepted) {
       throw new BusinessException(
         'Declaration must be accepted before submission',
         HttpStatus.UNPROCESSABLE_ENTITY,
@@ -829,7 +835,7 @@ export class ApplicantApplicationsService {
       );
     }
     if (
-      declaration.disciplinaryIssueDeclared &&
+      declaration?.disciplinaryIssueDeclared &&
       !declaration.disciplinaryIssueDetails?.trim()
     ) {
       throw new BusinessException(
@@ -838,12 +844,8 @@ export class ApplicantApplicationsService {
         'DISCIPLINARY_DETAILS_REQUIRED',
       );
     }
-    const activeOfferingDeclarations = await this.loadActiveOfferingDeclarations(
-      app.tenantId,
-      applicantId,
-    );
     const acceptedOfferingDeclarationIds = new Set(
-      declaration.acceptedOfferingDeclarationIds ?? [],
+      declaration?.acceptedOfferingDeclarationIds ?? [],
     );
     if (
       activeOfferingDeclarations.some(
@@ -867,7 +869,8 @@ export class ApplicantApplicationsService {
         applicantId,
         applicationStatus: app.applicationStatus,
         overallCompletion: app.overallCompletion,
-        submissionDate: app.submissionDate ?? declaration.submissionDate!,
+        submissionDate:
+          app.submissionDate ?? declaration?.submissionDate ?? new Date(),
       };
     }
 
@@ -879,10 +882,12 @@ export class ApplicantApplicationsService {
         submissionDate: now,
         appliedDate: app.appliedDate ?? now,
       });
-      await manager.getRepository(ApplicationDeclarationEntity).update(
-        { applicantId },
-        { submissionDate: now },
-      );
+      if (declaration) {
+        await manager.getRepository(ApplicationDeclarationEntity).update(
+          { applicantId },
+          { submissionDate: now },
+        );
+      }
     });
 
     return {
@@ -1084,7 +1089,9 @@ export class ApplicantApplicationsService {
     if (
       requireEditable &&
       (app.applicationStatus === ApplicationStatus.COMPLETE ||
-        app.applicationStatus === ApplicationStatus.SUBMITTED)
+        app.applicationStatus === ApplicationStatus.SUBMITTED ||
+        app.applicationStatus === ApplicationStatus.APPROVED ||
+        app.applicationStatus === ApplicationStatus.REJECTED)
     ) {
       throw new BusinessException(
         'Submitted applications are read-only',

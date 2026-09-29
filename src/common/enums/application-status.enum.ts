@@ -3,6 +3,8 @@ export enum ApplicationStatus {
   IN_PROGRESS = 'IN_PROGRESS',
   SUBMITTED = 'SUBMITTED',
   COMPLETE = 'COMPLETE',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
 }
 
 export enum AccountStatus {

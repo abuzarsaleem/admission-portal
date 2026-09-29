@@ -10,6 +10,7 @@ import {
   ApplicationContactEntity,
   ApplicationDeclarationEntity,
   ApplicationEntity,
+  ApplicationStatusAuditEntity,
   ApplicationProgrammeOptionEntity,
   ApplicationProgrammeSelectionEntity,
   CriteriaTypeEntity,
@@ -25,6 +26,17 @@ import {
   ProgrammeEntity,
   ProgrammeOfferingEntity,
   SupportingInformationEntity,
+  ProcessingFeeChallanEntity,
+  ProcessingFeeChallanItemEntity,
+  DesignatedBankEntity,
+  PaymentEvidenceEntity,
+  OnlinePaymentTransactionEntity,
+  BankReconciliationImportEntity,
+  BankReconciliationRecordEntity,
+  DocumentTypeEntity,
+  OfferingRequiredDocumentEntity,
+  ApplicantDocumentEntity,
+  DocumentVerificationAuditEntity,
 } from './entities/index.js';
 
 const entities = [
@@ -50,6 +62,18 @@ const entities = [
   ApplicationAddressEntity,
   ApplicationContactEntity,
   ApplicationDeclarationEntity,
+  ApplicationStatusAuditEntity,
+  ProcessingFeeChallanEntity,
+  ProcessingFeeChallanItemEntity,
+  DesignatedBankEntity,
+  PaymentEvidenceEntity,
+  OnlinePaymentTransactionEntity,
+  BankReconciliationImportEntity,
+  BankReconciliationRecordEntity,
+  DocumentTypeEntity,
+  OfferingRequiredDocumentEntity,
+  ApplicantDocumentEntity,
+  DocumentVerificationAuditEntity,
 ];
 
 @Module({

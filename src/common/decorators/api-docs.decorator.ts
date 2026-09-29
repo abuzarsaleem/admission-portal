@@ -85,6 +85,24 @@ export function ApiWrappedOkArrayResponse<TModel extends Type<unknown>>(
   });
 }
 
+/** Wrapped response whose data is a plain array rather than a paginated list. */
+export function ApiWrappedRawArrayResponse<TModel extends Type<unknown>>(
+  model: TModel,
+  description = 'Successful response',
+) {
+  return ApiOkResponse({
+    description,
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        data: { type: 'array', items: { $ref: getSchemaPath(model) } },
+      },
+      required: ['success', 'data'],
+    },
+  });
+}
+
 export function ApiStandardErrorResponses() {
   return applyDecorators(
     ApiUnauthorizedResponse({

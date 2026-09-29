@@ -1,0 +1,52 @@
+export enum ProcessingFeeStatus {
+  UNPAID = 'UNPAID',
+  PARTIALLY_PAID = 'PARTIALLY_PAID',
+  EVIDENCE_SUBMITTED = 'EVIDENCE_SUBMITTED',
+  VERIFIED = 'VERIFIED',
+  LATE_PAYMENT_VERIFIED = 'LATE_PAYMENT_VERIFIED',
+}
+
+export enum PaymentEvidenceVerificationIndicator {
+  UNVERIFIED = 'UNVERIFIED',
+  VERIFIED = 'VERIFIED',
+  REJECTED = 'REJECTED',
+}
+
+export enum PaymentEvidenceSource {
+  BANK_RECEIPT = 'BANK_RECEIPT',
+  ONLINE_RECEIPT = 'ONLINE_RECEIPT',
+}
+
+export enum OnlinePaymentMethod {
+  WALLET = 'WALLET',
+  MOBILE_ACCOUNT = 'MOBILE_ACCOUNT',
+}
+
+export enum OnlinePaymentStatus {
+  INITIATED = 'INITIATED',
+  PENDING = 'PENDING',
+  SUCCESS = 'SUCCESS',
+  FAILED = 'FAILED',
+  REFUNDED = 'REFUNDED',
+}
+
+export enum ReconciliationMatchStatus {
+  MATCHED = 'MATCHED',
+  UNMATCHED_CHALLAN = 'UNMATCHED_CHALLAN',
+  AMOUNT_MISMATCH = 'AMOUNT_MISMATCH',
+  REGISTRATION_MISMATCH = 'REGISTRATION_MISMATCH',
+  DUPLICATE = 'DUPLICATE',
+  LATE_PAYMENT = 'LATE_PAYMENT',
+}
+
+export enum ReconciliationResolutionStatus {
+  OPEN = 'OPEN',
+  RESOLVED = 'RESOLVED',
+  IGNORED = 'IGNORED',
+}
+
+export enum BankImportStatus {
+  COMPLETE = 'COMPLETE',
+  PARTIAL = 'PARTIAL',
+  FAILED = 'FAILED',
+}
