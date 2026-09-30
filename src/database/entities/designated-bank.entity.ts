@@ -32,6 +32,9 @@ export class DesignatedBankEntity {
   @Column({ type: 'varchar', length: 100, name: 'account_number' })
   accountNumber!: string;
 
+  @Column({ type: 'varchar', length: 1000, name: 'logo_storage_key', nullable: true })
+  logoStorageKey!: string | null;
+
   @Column({ type: 'timestamptz', name: 'effective_from' })
   effectiveFrom!: Date;
 

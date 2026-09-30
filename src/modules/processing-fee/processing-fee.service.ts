@@ -541,17 +541,17 @@ export class ProcessingFeeService {
   async listBanks(user: AuthUser) {
     this.assertStaff(user);
     const now = new Date();
-    return this.banks
+    const rows = await this.banks
       .find({
         where: { tenantId: user.tenantId, isActive: true, status: 'ACTIVE' },
         order: { effectiveFrom: 'DESC' },
       })
-      .then((rows) =>
-        rows.filter(
-          (x) =>
-            x.effectiveFrom <= now && (!x.effectiveTo || x.effectiveTo >= now),
-        ),
-      );
+    return Promise.all(rows
+      .filter(
+        (x) =>
+          x.effectiveFrom <= now && (!x.effectiveTo || x.effectiveTo >= now),
+      )
+      .map((row) => this.bankResponse(row)));
   }
 
   async createBank(user: AuthUser, dto: CreateDesignatedBankDto) {
@@ -564,7 +564,7 @@ export class ProcessingFeeService {
         HttpStatus.BAD_REQUEST,
         'INVALID_EFFECTIVE_RANGE',
       );
-    return this.banks.save(
+    const bank = await this.banks.save(
       this.banks.create({
         tenantId: user.tenantId,
         bankName: dto.bankName,
@@ -579,6 +579,30 @@ export class ProcessingFeeService {
         createdBy: user.userId,
       }),
     );
+    return this.bankResponse(bank);
+  }
+
+  async uploadBankLogo(user: AuthUser, id: string, file?: PaymentUpload) {
+    this.assertStaff(user);
+    const bank = await this.requireBank(user.tenantId, id);
+    this.assertBankLogo(file);
+    const stored = await this.storage.upload({
+      buffer: file.buffer,
+      mimeType: file.mimetype,
+      folder: `admissions/bank-logos/${user.tenantId}/${bank.id}`,
+      fileName: file.originalname,
+    });
+    const oldLogo = bank.logoStorageKey;
+    bank.logoStorageKey = stored.storageKey;
+    const saved = await this.banks.save(bank);
+    if (oldLogo && oldLogo !== stored.storageKey) {
+      try {
+        await this.storage.delete(oldLogo);
+      } catch {
+        // Keep the newly saved logo if cleanup of the replaced object fails.
+      }
+    }
+    return this.bankResponse(saved);
   }
 
   async updateBank(user: AuthUser, id: string, dto: CreateDesignatedBankDto) {
@@ -601,7 +625,7 @@ export class ProcessingFeeService {
       effectiveFrom: from,
       effectiveTo: to,
     });
-    return this.banks.save(bank);
+    return this.bankResponse(await this.banks.save(bank));
   }
 
   async setBankActive(user: AuthUser, id: string, active: boolean) {
@@ -609,7 +633,7 @@ export class ProcessingFeeService {
     const bank = await this.requireBank(user.tenantId, id);
     bank.isActive = active;
     bank.status = active ? 'ACTIVE' : 'INACTIVE';
-    return this.banks.save(bank);
+    return this.bankResponse(await this.banks.save(bank));
   }
 
   async pendingEvidence(user: AuthUser) {
@@ -1252,13 +1276,61 @@ export class ProcessingFeeService {
     );
   }
   private async challanResponse(row: ProcessingFeeChallanEntity) {
+    const bank = await this.banks.findOneBy({
+      id: row.designatedBankId,
+      tenantId: row.tenantId,
+    });
     return {
       ...row,
+      bankLogoUrl: bank?.logoStorageKey
+        ? await this.storage.resolveDownloadUrl(bank.logoStorageKey)
+        : null,
       items: await this.items.find({
         where: { tenantId: row.tenantId, challanId: row.id },
         order: { createdAt: 'ASC' },
       }),
     };
+  }
+
+  private async bankResponse(bank: DesignatedBankEntity) {
+    const { logoStorageKey, ...details } = bank;
+    return {
+      ...details,
+      logoUrl: logoStorageKey
+        ? await this.storage.resolveDownloadUrl(logoStorageKey)
+        : null,
+    };
+  }
+
+  private assertBankLogo(file?: PaymentUpload): asserts file is PaymentUpload {
+    if (!file?.buffer?.length)
+      throw new BusinessException(
+        'Bank logo file is required',
+        HttpStatus.BAD_REQUEST,
+        'FILE_REQUIRED',
+      );
+    const extensions: Record<string, string[]> = {
+      'image/jpeg': ['.jpg', '.jpeg'],
+      'image/png': ['.png'],
+      'image/webp': ['.webp'],
+    };
+    const allowed = extensions[file.mimetype];
+    const signatureMatches =
+      (file.mimetype === 'image/jpeg' && file.buffer[0] === 0xff && file.buffer[1] === 0xd8 && file.buffer[2] === 0xff) ||
+      (file.mimetype === 'image/png' && file.buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) ||
+      (file.mimetype === 'image/webp' && file.buffer.toString('ascii', 0, 4) === 'RIFF' && file.buffer.toString('ascii', 8, 12) === 'WEBP');
+    if (!allowed || !allowed.includes(extname(file.originalname).toLowerCase()) || !signatureMatches)
+      throw new BusinessException(
+        'Only matching JPEG, PNG, or WEBP images are allowed',
+        HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+        'INVALID_BANK_LOGO_FORMAT',
+      );
+    if (file.size > 2 * 1024 * 1024)
+      throw new BusinessException(
+        'Bank logo must be 2 MB or smaller',
+        HttpStatus.PAYLOAD_TOO_LARGE,
+        'FILE_TOO_LARGE',
+      );
   }
   private async onlinePaymentResponse(row: OnlinePaymentTransactionEntity) {
     const receipt = await this.evidence.findOne({

@@ -170,6 +170,33 @@ export class ProcessingFeeAdminController {
     return this.service.createBank(user, dto);
   }
 
+  @Post('processing-fee/banks/:bankId/logo')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: 2 * 1024 * 1024 } }),
+  )
+  @ApiParam({ name: 'bankId', format: 'uuid' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+  })
+  @ApiOperation({
+    summary: 'Upload or replace the designated bank logo',
+    description: 'Accepts JPEG, PNG, or WEBP images up to 2 MB. The response includes a resolved logoUrl.',
+  })
+  @ApiWrappedOkResponse(DesignatedBankResponseDto)
+  uploadBankLogo(
+    @CurrentUser() user: AuthUser,
+    @Param('bankId', new ParseUuidPipe('bankId')) id: string,
+    @UploadedFile() file?: PaymentUpload,
+  ) {
+    return this.service.uploadBankLogo(user, id, file);
+  }
+
   @Put('processing-fee/banks/:bankId')
   @ApiParam({ name: 'bankId', format: 'uuid' })
   @ApiOperation({

@@ -235,6 +235,9 @@ export class DesignatedBankResponseDto {
 
   @ApiProperty()
   isActive!: boolean;
+
+  @ApiPropertyOptional({ nullable: true, description: 'Resolved URL for the bank logo, when configured' })
+  logoUrl!: string | null;
 }
 
 export class PaymentEvidenceResponseDto {
@@ -328,6 +331,9 @@ export class ProcessingFeeChallanResponseDto {
 
   @ApiProperty()
   collectionBankName!: string;
+
+  @ApiPropertyOptional({ nullable: true, description: 'Resolved URL for the designated bank logo' })
+  bankLogoUrl!: string | null;
 
   @ApiProperty()
   collectionBankBranch!: string;
